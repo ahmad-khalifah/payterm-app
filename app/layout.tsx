@@ -24,7 +24,10 @@ export default function RootLayout({
   return (
     // The variable is injected here
     <html lang="en" className={`${jakarta.variable}`}>
-      <body className="font-sans antialiased text-gray-900 bg-gray-50">
+      {/* ADDED: overflow-x-hidden and w-full 
+        This is the silver bullet that strictly prevents mobile screens from stretching sideways 
+      */}
+      <body className="font-sans antialiased text-gray-900 bg-gray-50 w-full overflow-x-hidden">
         {children}
       </body>
     </html>
