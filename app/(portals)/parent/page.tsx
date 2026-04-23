@@ -328,7 +328,7 @@ export default function ParentDashboard() {
                           {isEscrowFunded ? 'Status' : isFullyPaid ? 'Status' : isFirstPayment ? 'Action Required' : 'Mid-Term Resumption Date'}
                         </p>
                         <p className="text-base font-bold text-[#0a1128]">
-                          {isEscrowFunded ? 'Awaiting School Verification' : isFullyPaid ? 'Term Completely Paid' : isFirstPayment ? 'New Term Resumption Downpayment' : (plan.next_payment_date || 'Awaiting Calendar')}
+                          {isEscrowFunded ? 'Awaiting School Verification' : isFullyPaid ? 'Term Completely Paid' : isFirstPayment ? 'Resumption Downpayment' : (plan.next_payment_date || 'Awaiting Calendar')}
                         </p>
                         {!isEscrowFunded && !isFullyPaid && (
                           <p className="text-sm font-mono font-bold text-blue-600 mt-1">₦{amountDue.toLocaleString()} due</p>

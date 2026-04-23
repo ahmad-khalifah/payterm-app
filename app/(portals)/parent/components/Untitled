@@ -1,0 +1,187 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
+
+interface DummyPaystackProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: (reference: string) => void;
+  amount: number;
+  email: string;
+  studentName: string;
+  studentClass?: string;
+  planId: string; // The ID of the active_plan to update
+}
+
+export default function DummyPaystack({ 
+  isOpen, onClose, onSuccess, amount, email, studentName, studentClass, planId 
+}: DummyPaystackProps) {
+  
+  const [step, setStep] = useState<'transfer' | 'processing' | 'success'>('transfer')
+  
+  // Dummy Virtual Account Details
+  const dummyAccount = {
+    bank: "PayTerm Simulated Bank",
+    accountNumber: "8012345679",
+    accountName: "PayTerm Escrow"
+  }
+  
+  // Reset state when modal opens
+  useEffect(() => {
+    if (isOpen) setStep('transfer')
+  }, [isOpen])
+
+  if (!isOpen) return null
+
+  const handlePaymentConfirm = async () => {
+    setStep('processing')
+
+    // 1. Simulate network delay (Pretend we are checking the bank API for the deposit)
+    await new Promise(resolve => setTimeout(resolve, 3500))
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error("Not authenticated")
+
+      const reference = `PT-${Math.random().toString(36).substring(2, 10).toUpperCase()}`
+
+      // 2. Insert into the transactions ledger
+      const { error: txError } = await supabase
+        .from('transactions') // Change to 'payment_history' if that is your table name
+        .insert({
+          parent_id: user.id,
+          amount: amount,
+          student_name: studentName,
+          student_class: studentClass || 'N/A',
+          description: 'Virtual Account Transfer',
+          status: 'Successful',
+          reference: reference
+        })
+
+      if (txError) throw txError
+
+      // 3. Update the parent's active_plan balance
+      const { data: planData } = await supabase
+        .from('active_plans')
+        .select('amount_paid')
+        .eq('id', planId)
+        .single()
+
+      if (planData) {
+        await supabase
+          .from('active_plans')
+          .update({ 
+            amount_paid: Number(planData.amount_paid) + amount,
+            status: 'Active' 
+          })
+          .eq('id', planId)
+      }
+
+      // 4. Show success screen briefly before closing
+      setStep('success')
+      setTimeout(() => {
+        onSuccess(reference)
+        onClose()
+      }, 2000)
+
+    } catch (err) {
+      console.error("Payment Simulation Error:", err)
+      alert("We could not confirm the transfer yet. Please try again.")
+      setStep('transfer')
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0a1128]/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden relative">
+        
+        {/* Paystack Header */}
+        <div className="bg-gray-50 border-b border-gray-100 p-4 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 bg-[#0ba4db] rounded-sm flex items-center justify-center">
+              <div className="w-3 h-3 bg-white rounded-sm"></div>
+            </div>
+            <span className="font-bold text-[#0a1128] text-sm tracking-tight">TEST MODE</span>
+          </div>
+          <button onClick={onClose} disabled={step !== 'transfer'} className="text-gray-400 hover:text-gray-600 disabled:opacity-30 transition-opacity">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <div className="p-6 md:p-8">
+          
+          {/* Amount Header */}
+          {step === 'transfer' && (
+            <div className="text-center mb-6">
+              <p className="text-gray-500 text-sm mb-1">{email}</p>
+              <p className="text-3xl font-bold text-[#0a1128]">₦{amount.toLocaleString()}</p>
+              <p className="text-xs font-bold text-orange-500 bg-orange-50 inline-block px-3 py-1 rounded-full mt-3">
+                Transfer exactly this amount
+              </p>
+            </div>
+          )}
+
+          {step === 'transfer' && (
+            <div className="space-y-6 animate-in fade-in">
+              {/* Virtual Account Box */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 text-center">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Bank Name</p>
+                <p className="font-bold text-[#0a1128] mb-4">{dummyAccount.bank}</p>
+                
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Account Number</p>
+                <p className="text-3xl font-mono font-bold text-blue-600 tracking-wider mb-4">
+                  {dummyAccount.accountNumber}
+                </p>
+
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Account Name</p>
+                <p className="font-medium text-[#0a1128]">{dummyAccount.accountName}</p>
+              </div>
+
+              <p className="text-xs text-center text-gray-500 font-medium">
+                This account expires in <strong className="text-[#0a1128]">30:00</strong>
+              </p>
+
+              <button 
+                onClick={handlePaymentConfirm} 
+                className="w-full bg-[#0ba4db] text-white p-4 rounded-xl font-bold hover:bg-[#0990c0] transition-colors shadow-md shadow-[#0ba4db]/20"
+              >
+                I have sent the money
+              </button>
+            </div>
+          )}
+
+          {step === 'processing' && (
+            <div className="py-12 flex flex-col items-center justify-center animate-in zoom-in duration-300">
+              <div className="w-16 h-16 relative flex items-center justify-center mb-6">
+                <div className="absolute inset-0 border-4 border-gray-100 border-t-[#0ba4db] rounded-full animate-spin"></div>
+                <svg className="w-6 h-6 text-[#0ba4db] animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" /></svg>
+              </div>
+              <p className="text-base font-bold text-[#0a1128]">Confirming Transfer...</p>
+              <p className="text-sm text-gray-500 mt-2 text-center">We are waiting for the bank to confirm your ₦{amount.toLocaleString()} deposit.</p>
+            </div>
+          )}
+
+          {step === 'success' && (
+            <div className="py-12 flex flex-col items-center justify-center animate-in zoom-in duration-300">
+              <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6 border-4 border-green-100">
+                <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+              </div>
+              <p className="text-xl font-bold text-[#0a1128]">Transfer Received!</p>
+              <p className="text-sm text-gray-500 mt-2">Your dashboard is updating...</p>
+            </div>
+          )}
+
+        </div>
+        
+        {/* Secured By footer */}
+        <div className="bg-gray-50 p-3 text-center border-t border-gray-100">
+          <p className="text-[10px] font-bold text-gray-400 flex items-center justify-center gap-1.5 uppercase tracking-widest">
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
+            Secured by DummyStack
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
