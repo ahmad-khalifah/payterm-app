@@ -28,21 +28,13 @@ export default function LandingPage() {
 
         <div className="relative z-10 max-w-5xl mx-auto text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
           
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-gray-200 text-gray-600 text-xs font-bold uppercase tracking-widest mb-8 shadow-sm">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-            </span>
-            Liquidity Engine Live
-          </div>
-
           <h1 className="text-5xl md:text-7xl font-extrabold text-[#0a1128] tracking-tight mb-6 leading-tight">
             Education financing, <br className="hidden md:block" />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">engineered for trust.</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">simplified for everyone.</span>
           </h1>
           
           <p className="text-gray-500 text-lg md:text-xl max-w-2xl mx-auto mb-10 font-medium leading-relaxed">
-            PayTerm acts as the central financial bridge. We secure installment plans for parents in escrow, while guaranteeing upfront liquidity payouts for partner schools.
+            PayTerm makes school fees manageable. We provide flexible installment plans for parents, ensuring your child's education is never interrupted.
           </p>
 
           <div className="flex flex-col sm:flex-row justify-center gap-4">
@@ -50,18 +42,18 @@ export default function LandingPage() {
               Enter Platform
             </Link>
             <a href="#how-it-works" className="bg-white text-[#0a1128] border border-gray-200 px-8 py-4 rounded-xl text-sm font-bold hover:bg-gray-50 transition-colors shadow-sm">
-              View Mechanics
+              How it Works
             </a>
           </div>
         </div>
       </section>
 
-      {/* 3. BENTO BOX FEATURE GRID (Mechanics) */}
+      {/* 3. BENTO BOX FEATURE GRID (How it Works) */}
       <section id="how-it-works" className="py-20 bg-white border-y border-gray-100 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="mb-12 md:mb-16">
-            <h2 className="text-3xl font-bold text-[#0a1128] tracking-tight mb-4">Financial Infrastructure</h2>
-            <p className="text-gray-500 font-medium max-w-2xl">A transparent breakdown of how capital moves through the PayTerm ecosystem.</p>
+            <h2 className="text-3xl font-bold text-[#0a1128] tracking-tight mb-4">How PayTerm Works</h2>
+            <p className="text-gray-500 font-medium max-w-2xl">A simple, transparent breakdown of how to secure your child's enrollment.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -72,28 +64,28 @@ export default function LandingPage() {
                 <svg className="w-32 h-32 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
               </div>
               <div className="relative z-10">
-                <span className="bg-blue-100 text-blue-800 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-6 inline-block">Parent Flow</span>
-                <h3 className="text-2xl md:text-3xl font-bold text-[#0a1128] mb-4">The 60/40 Escrow Split</h3>
+                <span className="bg-blue-100 text-blue-800 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-6 inline-block">The Plan</span>
+                <h3 className="text-2xl md:text-3xl font-bold text-[#0a1128] mb-4">The 60/40 Payment Structure</h3>
                 <p className="text-gray-500 font-medium leading-relaxed max-w-md mb-8">
-                  Parents secure their child&apos;s seat with a 60% downpayment. Funds are held in a secure, verifiable escrow ledger until the school verifies the enrollment. The remaining 40% is structured for mid-term completion.
+                  Secure your child's seat instantly with just a 60% downpayment. The remaining 40% is comfortably scheduled for the mid-term break, giving you breathing room while guaranteeing your child's education.
                 </p>
                 {/* Visual Math Representation */}
                 <div className="flex items-center gap-2 font-mono text-sm font-bold">
-                  <div className="bg-white border border-gray-200 px-4 py-2 rounded-lg text-[#0a1128]">60% Initial</div>
+                  <div className="bg-white border border-gray-200 px-4 py-2 rounded-lg text-[#0a1128]">60% Resumption</div>
                   <span className="text-gray-400">+</span>
                   <div className="bg-white border border-gray-200 px-4 py-2 rounded-lg text-[#0a1128]">40% Mid-term</div>
                 </div>
               </div>
             </div>
 
-            {/* Sub Feature 1: Liquidity */}
+            {/* Sub Feature 1: Instant Clearance */}
             <div className="bg-[#0a1128] rounded-3xl p-8 border border-gray-800 shadow-xl relative overflow-hidden flex flex-col justify-between">
                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500 rounded-full opacity-20 blur-3xl"></div>
                <div>
-                <span className="bg-blue-900/50 text-blue-300 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-6 inline-block border border-blue-800">School Flow</span>
-                <h3 className="text-xl font-bold text-white mb-3">Upfront Liquidity</h3>
+                <span className="bg-blue-900/50 text-blue-300 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-6 inline-block border border-blue-800">Peace of Mind</span>
+                <h3 className="text-xl font-bold text-white mb-3">Instant Clearance</h3>
                 <p className="text-gray-400 text-sm font-medium leading-relaxed">
-                  Partner schools do not wait. Upon verifying a 60% parent downpayment, PayTerm immediately clears an 80% capital tranche for school withdrawal.
+                  No more waiting in lines or bringing paper bank tellers to the bursar. Once your downpayment is made, the school is notified instantly and your child is cleared for gate access.
                 </p>
                </div>
             </div>
@@ -106,7 +98,7 @@ export default function LandingPage() {
       <section id="portals" className="py-24 px-6">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl font-bold text-[#0a1128] tracking-tight mb-4">Access Your Dashboard</h2>
-          <p className="text-gray-500 font-medium max-w-xl mx-auto mb-16">Select your designated portal to view your real-time ledgers, manage students, or request payouts.</p>
+          <p className="text-gray-500 font-medium max-w-xl mx-auto mb-16">Select your designated portal to view your real-time ledgers, manage students, or process payments.</p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 text-left">
             
@@ -116,9 +108,9 @@ export default function LandingPage() {
                 <svg className="w-7 h-7 text-blue-600 group-hover:text-white transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
               </div>
               <h3 className="text-xl font-bold text-[#0a1128] mb-2">Parent Portal</h3>
-              <p className="text-sm text-gray-500 leading-relaxed mb-8 font-medium">Link your student, manage your downpayments, and access your secure escrow ledger.</p>
+              <p className="text-sm text-gray-500 leading-relaxed mb-8 font-medium">Link your student, manage your downpayments, and access your secure receipts.</p>
               <div className="text-xs font-bold text-blue-600 flex items-center gap-2 uppercase tracking-wide">
-                Secure Login <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
+                Login / Signup <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
               </div>
             </Link>
 
@@ -128,9 +120,9 @@ export default function LandingPage() {
                 <svg className="w-7 h-7 text-indigo-600 group-hover:text-white transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
               </div>
               <h3 className="text-xl font-bold text-[#0a1128] mb-2">School Partner</h3>
-              <p className="text-sm text-gray-500 leading-relaxed mb-8 font-medium">Verify student enrollments, track active pipelines, and claim your escrowed funds.</p>
+              <p className="text-sm text-gray-500 leading-relaxed mb-8 font-medium">Verify student enrollments, track active pipelines, and view cleared payments.</p>
               <div className="text-xs font-bold text-indigo-600 flex items-center gap-2 uppercase tracking-wide">
-                Secure Login <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
+                Login / Signup <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
               </div>
             </Link>
 
