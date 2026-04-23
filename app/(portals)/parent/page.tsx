@@ -124,16 +124,6 @@ export default function ParentDashboard() {
     };
   }, [router]);
 
-  // NEW: Explicit Logout Function
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut()
-      router.push('/parent-login')
-    } catch (error) {
-      console.error('Error during logout:', error)
-    }
-  }
-
   const triggerPayment = (plan: any, child: any) => {
     const validStudentId = child.id || child.student_id;
 
@@ -203,23 +193,23 @@ export default function ParentDashboard() {
 
       {activeReceipt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95">
-            <div className="bg-[#0a1128] p-6 text-center text-white border-b-4 border-blue-600">
-              <h2 className="text-xl font-bold tracking-widest uppercase">PayTerm</h2>
+          <div className="bg-white rounded-2xl w-full max-w-[320px] sm:max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 mx-auto">
+            <div className="bg-[#0a1128] p-5 sm:p-6 text-center text-white border-b-4 border-blue-600">
+              <h2 className="text-lg sm:text-xl font-bold tracking-widest uppercase">PayTerm</h2>
               <p className="text-[10px] text-blue-200 mt-1 uppercase tracking-wider">Official Receipt</p>
             </div>
-            <div className="p-6 space-y-4 bg-gray-50/50">
+            <div className="p-5 sm:p-6 space-y-4 bg-gray-50/50">
               <div className="flex justify-between border-b border-gray-200 pb-3">
                 <span className="text-gray-500 text-xs font-medium">Receipt No.</span>
-                <span className="font-bold font-mono text-[#0a1128] text-sm">{activeReceipt.receipt_number}</span>
+                <span className="font-bold font-mono text-[#0a1128] text-xs sm:text-sm">{activeReceipt.receipt_number}</span>
               </div>
               <div className="flex justify-between border-b border-gray-200 pb-3">
                 <span className="text-gray-500 text-xs font-medium">Date</span>
-                <span className="font-bold text-[#0a1128] text-sm">{new Date(activeReceipt.payment_date).toLocaleDateString()}</span>
+                <span className="font-bold text-[#0a1128] text-xs sm:text-sm">{new Date(activeReceipt.payment_date).toLocaleDateString()}</span>
               </div>
               <div className="flex justify-between border-b border-gray-200 pb-3">
                 <span className="text-gray-500 text-xs font-medium">Amount Paid</span>
-                <span className="font-bold text-green-600 text-lg tracking-tight">₦{Number(activeReceipt.amount).toLocaleString()}</span>
+                <span className="font-bold text-green-600 text-base sm:text-lg tracking-tight">₦{Number(activeReceipt.amount).toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-500 text-xs font-medium">Status</span>
@@ -227,43 +217,34 @@ export default function ParentDashboard() {
               </div>
             </div>
             <div className="p-4 bg-white border-t border-gray-200 flex gap-2">
-              <button onClick={() => setActiveReceipt(null)} className="flex-1 py-3 text-xs font-bold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors">Close</button>
-              <button onClick={() => window.print()} className="flex-1 py-3 text-xs font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors">Print PDF</button>
+              <button onClick={() => setActiveReceipt(null)} className="flex-1 py-3.5 text-xs font-bold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors">Close</button>
+              <button onClick={() => window.print()} className="flex-1 py-3.5 text-xs font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors">Print PDF</button>
             </div>
           </div>
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 border-b border-gray-200 pb-6">
+      {/* HEADER SECTION - optimized for mobile stacking */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5 mb-8 border-b border-gray-200 pb-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#0a1128] tracking-tight">Parent Dashboard</h1>
-          <p className="text-gray-500 text-sm sm:text-base mt-1">Welcome back, <strong className="text-[#0a1128]">{parentName || 'Parent'}</strong>.</p>
+          <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Overview</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#0a1128] tracking-tight">
+            Welcome, {parentName ? parentName.split(' ')[0] : 'Parent'}
+          </h1>
         </div>
         
-        <div className="flex items-center gap-3">
-          {/* NEW: Explicit Logout Button */}
-          <button 
-            onClick={handleLogout}
-            className="p-3 sm:px-4 sm:py-3 bg-white border border-gray-300 rounded-xl text-gray-600 hover:text-red-600 hover:bg-red-50 hover:border-red-200 shadow-sm transition-all flex items-center gap-2"
-            title="Log Out"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-            <span className="hidden sm:block text-sm font-bold">Logout</span>
-          </button>
-          
-          <Link href="/parent/add-student" className="bg-[#0a1128] text-white px-5 py-3 rounded-xl text-sm font-bold hover:bg-[#15234b] transition-colors shadow-sm flex items-center justify-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Add Student
-          </Link>
-        </div>
+        <Link href="/parent/add-student" className="w-full sm:w-auto bg-[#0a1128] text-white px-6 py-3.5 rounded-xl text-sm font-bold hover:bg-[#15234b] transition-colors shadow-sm flex items-center justify-center gap-2 shrink-0">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          Add Student
+        </Link>
       </div>
 
       <div className="space-y-6">
         {childrenData.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-dashed border-gray-300 p-8 text-center flex flex-col items-center justify-center shadow-sm">
+          <div className="bg-white rounded-2xl border border-dashed border-gray-300 p-6 sm:p-8 text-center flex flex-col items-center justify-center shadow-sm">
             <h3 className="text-base font-bold text-[#0a1128] mb-1">No Students Linked</h3>
             <p className="text-gray-500 text-xs max-w-xs font-medium mb-5">Connect your child to a partner school to generate a plan.</p>
-            <Link href="/parent/add-student" className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-sm">Link Student Now</Link>
+            <Link href="/parent/add-student" className="w-full sm:w-auto bg-blue-600 text-white px-6 py-3 rounded-xl text-sm font-bold shadow-sm">Link Student Now</Link>
           </div>
         ) : (
           childrenData.map((child) => {
@@ -281,27 +262,27 @@ export default function ParentDashboard() {
             return (
               <div key={child.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden transition-all">
                 
-                <div className="p-4 sm:p-5 bg-gray-50/80 border-b border-gray-100 flex justify-between items-start">
+                <div className="p-4 sm:p-5 bg-gray-50/80 border-b border-gray-100 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
                   <div>
                     <h3 className="text-base sm:text-lg font-bold text-[#0a1128]">{child.full_name}</h3>
                     <p className="text-xs text-gray-500 mt-1">{child.student_class} • {child.school_id}</p>
                   </div>
-                  <div className="text-right">
+                  <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start">
                     {isEscrowFunded ? (
-                      <span className="text-[9px] font-bold text-blue-700 bg-blue-100 px-2 py-1 rounded shadow-sm uppercase tracking-wider border border-blue-200">In Escrow</span>
+                      <span className="text-[9px] font-bold text-blue-700 bg-blue-100 px-2.5 py-1 rounded shadow-sm uppercase tracking-wider border border-blue-200">In Escrow</span>
                     ) : isPending ? (
-                      <span className="text-[9px] font-bold text-orange-700 bg-orange-100 px-2 py-1 rounded shadow-sm uppercase tracking-wider border border-orange-200">Awaiting</span>
+                      <span className="text-[9px] font-bold text-orange-700 bg-orange-100 px-2.5 py-1 rounded shadow-sm uppercase tracking-wider border border-orange-200">Awaiting</span>
                     ) : (
-                      <span className="text-[9px] font-bold text-green-700 bg-green-100 px-2 py-1 rounded shadow-sm uppercase tracking-wider border border-green-200">Active</span>
+                      <span className="text-[9px] font-bold text-green-700 bg-green-100 px-2.5 py-1 rounded shadow-sm uppercase tracking-wider border border-green-200">Active</span>
                     )}
-                    {!isPending && plan?.mid_term_cleared && <p className="text-[10px] text-green-600 font-bold mt-2">✓ Mid-Term Cleared</p>}
+                    {!isPending && plan?.mid_term_cleared && <p className="text-[10px] text-green-600 font-bold sm:mt-2 ml-2 sm:ml-0">✓ Mid-Term Cleared</p>}
                   </div>
                 </div>
 
                 <div className="p-4 sm:p-5 space-y-4">
                   
                   {isPending && isFirstPayment && (
-                    <div className="bg-orange-50 text-orange-800 p-3 rounded-lg border border-orange-200 text-xs font-medium">
+                    <div className="bg-orange-50 text-orange-800 p-3.5 rounded-xl border border-orange-200 text-xs font-medium leading-relaxed">
                       Pay the 60% downpayment into Escrow to secure enrollment and access the school gates.
                     </div>
                   )}
@@ -310,22 +291,22 @@ export default function ParentDashboard() {
                     <div className="flex justify-between items-end border-b border-gray-100 pb-4">
                       <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Total Invoice</p>
-                        <p className="text-2xl font-bold font-mono text-[#0a1128]">₦{Number(plan.total_fee).toLocaleString()}</p>
+                        <p className="text-xl sm:text-2xl font-bold font-mono text-[#0a1128]">₦{Number(plan.total_fee).toLocaleString()}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest mb-0.5">Total Paid</p>
-                        <p className="text-lg font-bold font-mono text-green-700">₦{Number(plan.amount_paid).toLocaleString()}</p>
+                        <p className="text-base sm:text-lg font-bold font-mono text-green-700">₦{Number(plan.amount_paid).toLocaleString()}</p>
                       </div>
                     </div>
                   )}
 
                   {plan && (
-                    <div className={`rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 ${isEscrowFunded ? 'bg-blue-50/50 border border-blue-100' : isFullyPaid ? 'bg-green-50/50 border border-green-100' : 'bg-gray-50 border border-gray-200'}`}>
+                    <div className={`rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6 ${isEscrowFunded ? 'bg-blue-50/50 border border-blue-100' : isFullyPaid ? 'bg-green-50/50 border border-green-100' : 'bg-gray-50 border border-gray-200'}`}>
                       <div className="w-full sm:w-auto text-center sm:text-left">
-                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">
                           {isEscrowFunded ? 'Status' : isFullyPaid ? 'Status' : isFirstPayment ? 'Action Required' : 'Mid-Term Resumption Date'}
                         </p>
-                        <p className="text-base font-bold text-[#0a1128]">
+                        <p className="text-sm sm:text-base font-bold text-[#0a1128]">
                           {isEscrowFunded ? 'Awaiting School Verification' : isFullyPaid ? 'Term Completely Paid' : isFirstPayment ? 'Resumption Downpayment' : (plan.next_payment_date || 'Awaiting Calendar')}
                         </p>
                         {!isEscrowFunded && !isFullyPaid && (
@@ -336,7 +317,7 @@ export default function ParentDashboard() {
                       {!isEscrowFunded && !isFullyPaid && (
                         <button 
                           onClick={() => triggerPayment(plan, child)}
-                          className="w-full sm:w-auto bg-[#0a1128] text-white px-6 py-3 rounded-lg text-sm font-bold shadow-sm hover:bg-[#15234b] transition-colors shrink-0"
+                          className="w-full sm:w-auto bg-[#0a1128] text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-sm hover:bg-[#15234b] transition-colors shrink-0"
                         >
                           {isFirstPayment ? `Pay 60% Escrow` : `Pay 40% Balance`}
                         </button>
@@ -346,7 +327,7 @@ export default function ParentDashboard() {
 
                   {sortedHistory && sortedHistory.length > 0 && (
                     <div className="pt-2">
-                      <button onClick={() => toggleHistory(child.id)} className="w-full py-2 flex items-center justify-center gap-2 text-xs font-bold text-gray-500 hover:text-[#0a1128] transition-colors bg-white rounded-lg border border-gray-200 shadow-sm">
+                      <button onClick={() => toggleHistory(child.id)} className="w-full py-3 flex items-center justify-center gap-2 text-xs font-bold text-gray-500 hover:text-[#0a1128] transition-colors bg-white rounded-xl border border-gray-200 shadow-sm">
                         {isHistoryExpanded ? 'Hide Transactions' : 'View Billing History'}
                         <svg className={`w-3 h-3 transition-transform ${isHistoryExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                       </button>
@@ -354,12 +335,12 @@ export default function ParentDashboard() {
                       {isHistoryExpanded && (
                         <div className="mt-3 space-y-2 animate-in slide-in-from-top-2 duration-200">
                           {sortedHistory.map((tx: any) => (
-                            <div key={tx.id} className="flex justify-between items-center p-3 rounded-xl border border-gray-100 bg-gray-50">
-                              <div>
+                            <div key={tx.id} className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 p-3 sm:p-4 rounded-xl border border-gray-100 bg-gray-50">
+                              <div className="flex justify-between sm:block w-full sm:w-auto">
                                 <p className="text-sm font-bold text-[#0a1128]">₦{Number(tx.amount).toLocaleString()}</p>
                                 <p className="text-[10px] font-medium text-gray-500">{new Date(tx.payment_date).toLocaleDateString()}</p>
                               </div>
-                              <button onClick={() => setActiveReceipt(tx)} className="text-[10px] font-bold text-[#0a1128] bg-white border border-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-100 transition-colors shadow-sm">Receipt</button>
+                              <button onClick={() => setActiveReceipt(tx)} className="w-full sm:w-auto text-xs font-bold text-[#0a1128] bg-white border border-gray-200 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors shadow-sm">View Receipt</button>
                             </div>
                           ))}
                         </div>
