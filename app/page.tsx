@@ -75,7 +75,7 @@ export default function LandingPage() {
                 <span className="bg-blue-100 text-blue-800 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-6 inline-block">Parent Flow</span>
                 <h3 className="text-2xl md:text-3xl font-bold text-[#0a1128] mb-4">The 60/40 Escrow Split</h3>
                 <p className="text-gray-500 font-medium leading-relaxed max-w-md mb-8">
-                  Parents secure their child's seat with a 60% downpayment. Funds are held in a secure, verifiable escrow ledger until the school verifies the enrollment. The remaining 40% is structured for mid-term completion.
+                  Parents secure their child&apos;s seat with a 60% downpayment. Funds are held in a secure, verifiable escrow ledger until the school verifies the enrollment. The remaining 40% is structured for mid-term completion.
                 </p>
                 {/* Visual Math Representation */}
                 <div className="flex items-center gap-2 font-mono text-sm font-bold">
@@ -102,13 +102,13 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 4. THE PORTAL GATEWAYS (Your original code, refined) */}
+      {/* 4. THE PORTAL GATEWAYS */}
       <section id="portals" className="py-24 px-6">
-        <div className="max-w-6xl mx-auto text-center">
+        <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl font-bold text-[#0a1128] tracking-tight mb-4">Access Your Dashboard</h2>
           <p className="text-gray-500 font-medium max-w-xl mx-auto mb-16">Select your designated portal to view your real-time ledgers, manage students, or request payouts.</p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 text-left">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 text-left">
             
             {/* Parent Portal */}
             <Link href="/parent-login" className="group p-8 rounded-3xl bg-white border border-gray-200 hover:border-blue-600 hover:shadow-2xl hover:shadow-blue-900/5 transition-all duration-300 transform hover:-translate-y-1">
@@ -116,7 +116,7 @@ export default function LandingPage() {
                 <svg className="w-7 h-7 text-blue-600 group-hover:text-white transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
               </div>
               <h3 className="text-xl font-bold text-[#0a1128] mb-2">Parent Portal</h3>
-              <p className="text-sm text-gray-500 leading-relaxed mb-8 font-medium">Link your child, manage your downpayments, and access your secure escrow ledger.</p>
+              <p className="text-sm text-gray-500 leading-relaxed mb-8 font-medium">Link your student, manage your downpayments, and access your secure escrow ledger.</p>
               <div className="text-xs font-bold text-blue-600 flex items-center gap-2 uppercase tracking-wide">
                 Secure Login <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
               </div>
@@ -131,18 +131,6 @@ export default function LandingPage() {
               <p className="text-sm text-gray-500 leading-relaxed mb-8 font-medium">Verify student enrollments, track active pipelines, and claim your escrowed funds.</p>
               <div className="text-xs font-bold text-indigo-600 flex items-center gap-2 uppercase tracking-wide">
                 Secure Login <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
-              </div>
-            </Link>
-
-            {/* Admin Portal */}
-            <Link href="/admin-login" className="group p-8 rounded-3xl bg-white border border-gray-200 hover:border-gray-900 hover:shadow-2xl hover:shadow-gray-900/5 transition-all duration-300 transform hover:-translate-y-1">
-              <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-gray-900 transition-colors duration-300">
-                <svg className="w-7 h-7 text-gray-700 group-hover:text-white transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-              </div>
-              <h3 className="text-xl font-bold text-[#0a1128] mb-2">Administration</h3>
-              <p className="text-sm text-gray-500 leading-relaxed mb-8 font-medium">Manage platform liquidity, approve partner schools, and oversee total network escrow.</p>
-              <div className="text-xs font-bold text-gray-900 flex items-center gap-2 uppercase tracking-wide">
-                System Login <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
               </div>
             </Link>
 
