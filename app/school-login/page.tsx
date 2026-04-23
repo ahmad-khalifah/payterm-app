@@ -59,8 +59,11 @@ export default function SchoolLogin() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 animate-in fade-in font-sans">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+    // FIX 1: Ensured outer wrapper has absolute p-4 for strict mobile margins
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center p-4 sm:p-6 lg:p-8 animate-in fade-in font-sans">
+      
+      {/* FIX 2: Removed "sm:" from max-w-md, w-full, and mx-auto so it stays compact on mobile */}
+      <div className="w-full max-w-md mx-auto text-center">
         <h2 className="text-3xl font-extrabold text-[#0a1128] tracking-tight">
           PayTerm <span className="text-blue-600">Schools</span>
         </h2>
@@ -69,8 +72,9 @@ export default function SchoolLogin() {
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 sm:px-10 rounded-2xl border border-gray-200 shadow-xl">
+      {/* FIX 3: Removed "sm:" here as well to restrict the white card size */}
+      <div className="mt-8 w-full max-w-md mx-auto">
+        <div className="bg-white py-8 px-5 sm:px-10 rounded-2xl border border-gray-200 shadow-xl">
           
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 text-sm font-bold rounded-xl text-center">

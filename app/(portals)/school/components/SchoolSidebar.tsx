@@ -2,12 +2,12 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { supabase } from '../../../../lib/supabase'
+import { usePathname } from 'next/navigation'
+// FIX 1: Guaranteed absolute import path so it never silently crashes
+import { supabase } from '@/lib/supabase' 
 
 export default function SchoolSidebar() {
   const pathname = usePathname()
-  const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
@@ -24,7 +24,11 @@ export default function SchoolSidebar() {
     setIsLoggingOut(true)
     try {
       await supabase.auth.signOut()
-      router.push('/school-login')
+      
+      // FIX 2: Force a hard browser redirect instead of a soft Next.js route.
+      // This guarantees the local cache is wiped clean.
+      window.location.href = '/school-login'
+      
     } catch (error) {
       console.error('Error logging out:', error)
       setIsLoggingOut(false)

@@ -16,7 +16,6 @@ export default function ParentDashboard() {
   const [activeReceipt, setActiveReceipt] = useState<any | null>(null)
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null)
 
-  // State to control the DummyPaystack modal
   const [paystackConfig, setPaystackConfig] = useState<{
     isOpen: boolean;
     amount: number;
@@ -24,7 +23,7 @@ export default function ParentDashboard() {
     studentName: string;
     studentClass: string;
     planId: string;
-    studentId: string; // ADDED: Required for the DB insert
+    studentId: string;
     isMidTerm: boolean;
   } | null>(null)
 
@@ -67,7 +66,6 @@ export default function ParentDashboard() {
 
     const loadDashboardData = async () => {
       try {
-        // 1. Securely await the local session FIRST
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError || !session?.user) {
@@ -77,7 +75,6 @@ export default function ParentDashboard() {
 
         if (isMounted) setCurrentUserId(session.user.id);
 
-        // 2. Fetch Parent Profile
         const { data: parentProfile } = await supabase
           .from('parents')
           .select('full_name')
@@ -88,7 +85,6 @@ export default function ParentDashboard() {
           setParentName(parentProfile.full_name);
         }
 
-        // 3. Fetch Relational Data
         const { data: students, error: studentError } = await supabase
           .from('students')
           .select(`
@@ -116,7 +112,6 @@ export default function ParentDashboard() {
 
     loadDashboardData();
 
-    // 4. Listen for logouts
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
         router.push('/parent-login');
@@ -129,17 +124,22 @@ export default function ParentDashboard() {
     };
   }, [router]);
 
-  // Trigger Modal instead of instant DB logic
-  const triggerPayment = (plan: any, child: any) => {
-    // 1. Force the browser to show us exactly what the database returned
-    console.log("DEBUG DASHBOARD - Full Child Object:", child);
+  // NEW: Explicit Logout Function
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut()
+      router.push('/parent-login')
+    } catch (error) {
+      console.error('Error during logout:', error)
+    }
+  }
 
-    // 2. Safely grab the ID whether your column is named 'id' or 'student_id'
+  const triggerPayment = (plan: any, child: any) => {
     const validStudentId = child.id || child.student_id;
 
     if (!validStudentId) {
       alert("STOP: The dashboard cannot find the student's ID. Open your browser console to see what the database returned.");
-      return; // Stop the modal from even opening
+      return; 
     }
 
     const isFirstPayment = Number(plan.amount_paid) === 0
@@ -149,7 +149,6 @@ export default function ParentDashboard() {
 
     const dummyEmail = parentName ? `${parentName.replace(/\s+/g, '').toLowerCase()}@email.com` : 'parent@email.com'
 
-    // 3. Pass the strictly verified validStudentId
     setPaystackConfig({
       isOpen: true,
       amount: paymentAmount,
@@ -157,15 +156,13 @@ export default function ParentDashboard() {
       studentName: child.full_name,
       studentClass: child.student_class,
       planId: plan.id,
-      studentId: validStudentId, // <--- Using the verified ID
+      studentId: validStudentId, 
       isMidTerm: !isFirstPayment
     })
   }
 
-  // Handle Success from Modal
   const handlePaymentSuccess = async (reference: string) => {
     try {
-      // If this was the 40% mid-term payment, instantly unlock their clearance ticket
       if (paystackConfig?.isMidTerm) {
         await supabase
           .from('active_plans')
@@ -175,7 +172,7 @@ export default function ParentDashboard() {
       
       alert(`Payment confirmed! Receipt No: ${reference}`)
       setPaystackConfig(null)
-      fetchDashboardData() // Refresh UI instantly
+      fetchDashboardData() 
     } catch (err) {
       console.error("Post-payment update error:", err)
     }
@@ -190,7 +187,6 @@ export default function ParentDashboard() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto animate-in fade-in pb-24">
       
-      {/* --- VIRTUAL PAYSTACK MODAL --- */}
       {paystackConfig && (
         <DummyPaystack
           isOpen={paystackConfig.isOpen}
@@ -201,11 +197,10 @@ export default function ParentDashboard() {
           studentName={paystackConfig.studentName}
           studentClass={paystackConfig.studentClass}
           planId={paystackConfig.planId}
-          studentId={paystackConfig.studentId} // ADDED: Passing the ID to the component
+          studentId={paystackConfig.studentId}
         />
       )}
 
-      {/* --- RECEIPT MODAL --- */}
       {activeReceipt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95">
@@ -238,7 +233,6 @@ export default function ParentDashboard() {
           </div>
         </div>
       )}
-      {/* --------------------- */}
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 border-b border-gray-200 pb-6">
         <div>
@@ -247,8 +241,14 @@ export default function ParentDashboard() {
         </div>
         
         <div className="flex items-center gap-3">
-          <button className="p-3 bg-white border border-gray-300 rounded-full text-gray-600 hover:bg-gray-50 shadow-sm transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+          {/* NEW: Explicit Logout Button */}
+          <button 
+            onClick={handleLogout}
+            className="p-3 sm:px-4 sm:py-3 bg-white border border-gray-300 rounded-xl text-gray-600 hover:text-red-600 hover:bg-red-50 hover:border-red-200 shadow-sm transition-all flex items-center gap-2"
+            title="Log Out"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            <span className="hidden sm:block text-sm font-bold">Logout</span>
           </button>
           
           <Link href="/parent/add-student" className="bg-[#0a1128] text-white px-5 py-3 rounded-xl text-sm font-bold hover:bg-[#15234b] transition-colors shadow-sm flex items-center justify-center gap-2">
@@ -271,7 +271,6 @@ export default function ParentDashboard() {
             const isPending = child.enrollment_status === 'Pending Verification'
             const isEscrowFunded = isPending && plan && plan.amount_paid > 0
             
-            // 60/40 UI Logic calculations
             const isFirstPayment = plan?.amount_paid === 0
             const isFullyPaid = plan?.amount_paid >= plan?.total_fee
             const amountDue = isFirstPayment ? Number(plan?.total_fee) * 0.60 : Number(plan?.total_fee) - Number(plan?.amount_paid)
@@ -320,7 +319,6 @@ export default function ParentDashboard() {
                     </div>
                   )}
 
-                  {/* REBUILT 60/40 BILLING TRACKER */}
                   {plan && (
                     <div className={`rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 ${isEscrowFunded ? 'bg-blue-50/50 border border-blue-100' : isFullyPaid ? 'bg-green-50/50 border border-green-100' : 'bg-gray-50 border border-gray-200'}`}>
                       <div className="w-full sm:w-auto text-center sm:text-left">
