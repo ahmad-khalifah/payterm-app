@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 
 const NIGERIAN_STATES = [
@@ -59,7 +60,6 @@ export default function SchoolSignup() {
         router.push('/school-login')
       }
     } catch (err: any) {
-      // This will print the raw database error code to your screen if it fails
       alert(`Error Details: ${JSON.stringify(err)}`)
     } finally {
       setIsSubmitting(false)
@@ -67,44 +67,73 @@ export default function SchoolSignup() {
   }
 
   return (
-    <div className="max-w-md mx-auto mt-20 p-8 bg-white rounded-2xl shadow-sm border border-gray-200">
-      <h1 className="text-2xl font-bold text-[#0a1128] mb-6">Partner Institution Setup</h1>
+    // OUTER WRAPPER: Forces the gray background and absolute mobile padding (p-4)
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center p-4 sm:p-6 lg:p-8 animate-in fade-in font-sans">
       
-      <form onSubmit={handleSignup} className="space-y-5">
-        <div>
-          <label className="block text-xs font-bold text-[#0a1128] uppercase tracking-wide mb-2">School Name</label>
-          <input required type="text" value={form.schoolName} onChange={e => setForm({...form, schoolName: e.target.value})} className="w-full border border-gray-300 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600" />
-        </div>
+      {/* HEADER SECTION */}
+      <div className="w-full max-w-md mx-auto text-center mb-8">
+        <h2 className="text-3xl font-extrabold text-[#0a1128] tracking-tight">
+          Partner Setup
+        </h2>
+        <p className="mt-2 text-sm text-gray-500 font-medium">
+          Register your institution to join the network.
+        </p>
+      </div>
 
-        <div>
-          <label className="block text-xs font-bold text-[#0a1128] uppercase tracking-wide mb-2">Location (State)</label>
-          <select required value={form.state} onChange={e => setForm({...form, state: e.target.value})} className="w-full border border-gray-300 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 bg-white">
-            <option value="" disabled>-- Select a State --</option>
-            {NIGERIAN_STATES.map((state) => (
-              <option key={state} value={state}>{state}</option>
-            ))}
-          </select>
-        </div>
+      {/* CARD CONTAINER: Constrained width, allowing margins to exist */}
+      <div className="w-full max-w-md mx-auto">
+        <div className="bg-white py-8 px-6 sm:px-8 rounded-2xl shadow-xl border border-gray-200">
+          
+          <form onSubmit={handleSignup} className="space-y-5">
+            <div>
+              <label className="block text-xs font-bold text-[#0a1128] uppercase tracking-wide mb-2">School Name</label>
+              <input required type="text" value={form.schoolName} onChange={e => setForm({...form, schoolName: e.target.value})} className="w-full border border-gray-300 p-3.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 transition-all text-[#0a1128] font-medium shadow-sm" placeholder="e.g. Standard Academy" />
+            </div>
 
-        <div>
-          <label className="block text-xs font-bold text-[#0a1128] uppercase tracking-wide mb-2">Official Email</label>
-          <input required type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full border border-gray-300 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600" />
-        </div>
+            <div>
+              <label className="block text-xs font-bold text-[#0a1128] uppercase tracking-wide mb-2">Location (State)</label>
+              <select required value={form.state} onChange={e => setForm({...form, state: e.target.value})} className="w-full border border-gray-300 p-3.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 bg-white text-[#0a1128] font-medium shadow-sm">
+                <option value="" disabled>-- Select a State --</option>
+                {NIGERIAN_STATES.map((state) => (
+                  <option key={state} value={state}>{state}</option>
+                ))}
+              </select>
+            </div>
 
-        <div>
-          <label className="block text-xs font-bold text-[#0a1128] uppercase tracking-wide mb-2">Contact Phone</label>
-          <input required type="tel" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full border border-gray-300 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600" />
-        </div>
+            <div>
+              <label className="block text-xs font-bold text-[#0a1128] uppercase tracking-wide mb-2">Official Email</label>
+              <input required type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full border border-gray-300 p-3.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 transition-all text-[#0a1128] font-medium shadow-sm" placeholder="admin@school.com" />
+            </div>
 
-        <div>
-          <label className="block text-xs font-bold text-[#0a1128] uppercase tracking-wide mb-2">Password</label>
-          <input required type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} className="w-full border border-gray-300 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600" />
-        </div>
+            <div>
+              <label className="block text-xs font-bold text-[#0a1128] uppercase tracking-wide mb-2">Contact Phone</label>
+              <input required type="tel" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full border border-gray-300 p-3.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 transition-all text-[#0a1128] font-medium font-mono shadow-sm" placeholder="08012345678" />
+            </div>
 
-        <button type="submit" disabled={isSubmitting} className="w-full bg-[#0a1128] text-white px-5 py-3.5 rounded-xl font-bold hover:bg-[#15234b] disabled:opacity-50 transition-colors mt-4">
-          {isSubmitting ? 'Loading...' : 'Sign Up'}
-        </button>
-      </form>
+            <div>
+              <label className="block text-xs font-bold text-[#0a1128] uppercase tracking-wide mb-2">Password</label>
+              <input required type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} className="w-full border border-gray-300 p-3.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 transition-all text-[#0a1128] font-medium shadow-sm" placeholder="••••••••" />
+            </div>
+
+            <div className="pt-2">
+              <button type="submit" disabled={isSubmitting} className="w-full bg-[#0a1128] text-white px-5 py-3.5 rounded-xl text-sm font-bold shadow-sm hover:bg-[#15234b] disabled:opacity-50 transition-colors">
+                {isSubmitting ? 'Loading...' : 'Submit Application'}
+              </button>
+            </div>
+          </form>
+
+          {/* ADDED LOGIN LINK FOR CONSISTENCY */}
+          <div className="mt-8 pt-6 border-t border-gray-100 text-center">
+            <p className="text-sm text-gray-500 font-medium">
+              Already a partner?{' '}
+              <Link href="/school-login" className="font-bold text-[#0a1128] hover:text-blue-600 transition-colors">
+                Sign in here
+              </Link>
+            </p>
+          </div>
+
+        </div>
+      </div>
     </div>
   )
 }

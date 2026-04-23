@@ -36,15 +36,15 @@ export default function ParentSignup() {
 
       if (authError) throw authError
 
-    // NEW: Manually insert the parent profile since the database trigger is gone
-    if (authData.user) {
+      // Manually insert the parent profile since the database trigger is gone
+      if (authData.user) {
         const { error: insertError } = await supabase
           .from('parents')
           .insert({
             id: authData.user.id,
             full_name: form.fullName,
             email: form.email,
-            phone: form.phone // <-- CHANGE THIS FROM phone_number TO phone
+            phone: form.phone 
           })
 
         if (insertError) throw insertError
@@ -59,8 +59,11 @@ export default function ParentSignup() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 animate-in fade-in font-sans px-6">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+    // FIX 1: Added p-4 to the absolute outer wrapper to guarantee a mobile border
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center p-4 sm:p-6 lg:p-8 animate-in fade-in font-sans">
+      
+      {/* FIX 2: Removed "sm:" from mx-auto, w-full, and max-w-md so it centers on mobile too */}
+      <div className="w-full max-w-md mx-auto text-center">
         <h2 className="text-3xl font-extrabold text-[#0a1128] tracking-tight">
           Parent Registration
         </h2>
@@ -69,8 +72,9 @@ export default function ParentSignup() {
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 sm:px-10 rounded-2xl border border-gray-200 shadow-xl">
+      {/* FIX 3: Removed "sm:" from here as well to restrain the white card width on mobile */}
+      <div className="mt-8 w-full max-w-md mx-auto">
+        <div className="bg-white py-6 px-5 sm:px-8 rounded-2xl border border-gray-200 shadow-xl">
           
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 text-sm font-bold rounded-xl text-center">

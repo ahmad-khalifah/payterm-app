@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase' // Ensure this path matches your project structure
+import { supabase } from '@/lib/supabase'
 
 interface DummyPaystackProps {
   isOpen: boolean;
@@ -12,7 +12,7 @@ interface DummyPaystackProps {
   studentName: string;
   studentClass?: string;
   planId: string; 
-  studentId: string; // REQUIRED: The missing piece for the database constraint
+  studentId: string;
 }
 
 export default function DummyPaystack({ 
@@ -36,7 +36,6 @@ export default function DummyPaystack({
   const handlePaymentConfirm = async () => {
     setStep('processing')
     
-    // Simulate bank processing time
     await new Promise(resolve => setTimeout(resolve, 3500))
 
     try {
@@ -45,25 +44,16 @@ export default function DummyPaystack({
 
       const reference = `PT-${Math.random().toString(36).substring(2, 10).toUpperCase()}`
 
-      // DEBUGGING LOG: Check your browser console to ensure studentId is NOT undefined
-      console.log("DEBUG - Data heading to database:", {
-        parent_id: user.id,
-        plan_id: planId,
-        student_id: studentId,
-        amount: amount
-      });
-
       if (!studentId) {
         throw new Error("CRITICAL: studentId is missing. The Dashboard did not pass it correctly.");
       }
 
-      // 1. Insert the receipt into payment history
       const { error: txError } = await supabase
         .from('payment_history')
         .insert({
           parent_id: user.id,
           plan_id: planId,
-          student_id: studentId, // Fixing the not-null constraint
+          student_id: studentId,
           amount: amount,
           receipt_number: reference,
           status: 'Cleared'
@@ -71,14 +61,12 @@ export default function DummyPaystack({
 
       if (txError) throw txError
 
-      // 2. Fetch current plan to calculate new amount_paid
       const { data: planData } = await supabase
         .from('active_plans')
         .select('amount_paid')
         .eq('id', planId)
         .single()
 
-      // 3. Update the active plan
       if (planData) {
         await supabase
           .from('active_plans')
@@ -99,59 +87,63 @@ export default function DummyPaystack({
     } catch (err: any) {
       console.error("Payment Simulation Error:", err)
       alert(`Transfer Failed: ${err.message || JSON.stringify(err)}`)
-      setStep('transfer') // Revert so they can try again or close
+      setStep('transfer')
     }
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0a1128]/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden relative">
+    // FIX 1: Increased outer padding to p-6 to guarantee a thicker mobile margin
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[#0a1128]/70 backdrop-blur-sm animate-in fade-in duration-200">
+      
+      {/* FIX 2: Replaced max-w-md with max-w-[360px] to force a compact, "widget" style box */}
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[360px] overflow-hidden relative mx-auto">
         
         <div className="bg-gray-50 border-b border-gray-100 p-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-[#0ba4db] rounded-sm flex items-center justify-center">
-              <div className="w-3 h-3 bg-white rounded-sm"></div>
+            <div className="w-5 h-5 bg-[#0ba4db] rounded-sm flex items-center justify-center">
+              <div className="w-2.5 h-2.5 bg-white rounded-sm"></div>
             </div>
-            <span className="font-bold text-[#0a1128] text-sm tracking-tight">TEST MODE</span>
+            <span className="font-bold text-[#0a1128] text-xs tracking-tight">TEST MODE</span>
           </div>
           <button onClick={onClose} disabled={step !== 'transfer'} className="text-gray-400 hover:text-gray-600 disabled:opacity-30 transition-opacity">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
-        <div className="p-6 md:p-8">
+        {/* FIX 3: Unified padding inside the card so it doesn't inflate on bigger screens */}
+        <div className="p-6">
           {step === 'transfer' && (
             <div className="text-center mb-6">
-              <p className="text-gray-500 text-sm mb-1">{email}</p>
-              <p className="text-3xl font-bold text-[#0a1128]">₦{amount.toLocaleString()}</p>
-              <p className="text-xs font-bold text-orange-500 bg-orange-50 inline-block px-3 py-1 rounded-full mt-3">
+              <p className="text-gray-500 text-xs mb-1">{email}</p>
+              <p className="text-2xl font-bold text-[#0a1128]">₦{amount.toLocaleString()}</p>
+              <p className="text-[11px] font-bold text-orange-500 bg-orange-50 inline-block px-3 py-1 rounded-full mt-2">
                 Transfer exactly this amount
               </p>
             </div>
           )}
 
           {step === 'transfer' && (
-            <div className="space-y-6 animate-in fade-in">
-              <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 text-center">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Bank Name</p>
-                <p className="font-bold text-[#0a1128] mb-4">{dummyAccount.bank}</p>
+            <div className="space-y-5 animate-in fade-in">
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Bank Name</p>
+                <p className="text-sm font-bold text-[#0a1128] mb-3">{dummyAccount.bank}</p>
                 
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Account Number</p>
-                <p className="text-3xl font-mono font-bold text-blue-600 tracking-wider mb-4">
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Account Number</p>
+                <p className="text-2xl font-mono font-bold text-blue-600 tracking-wider mb-3">
                   {dummyAccount.accountNumber}
                 </p>
 
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Account Name</p>
-                <p className="font-medium text-[#0a1128]">{dummyAccount.accountName}</p>
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Account Name</p>
+                <p className="text-xs font-medium text-[#0a1128]">{dummyAccount.accountName}</p>
               </div>
 
-              <p className="text-xs text-center text-gray-500 font-medium">
+              <p className="text-[11px] text-center text-gray-500 font-medium">
                 This account expires in <strong className="text-[#0a1128]">30:00</strong>
               </p>
 
               <button 
                 onClick={handlePaymentConfirm} 
-                className="w-full bg-[#0ba4db] text-white p-4 rounded-xl font-bold hover:bg-[#0990c0] transition-colors shadow-md shadow-[#0ba4db]/20"
+                className="w-full bg-[#0ba4db] text-white p-3.5 rounded-xl text-sm font-bold hover:bg-[#0990c0] transition-colors shadow-md shadow-[#0ba4db]/20"
               >
                 I have sent the money
               </button>
@@ -159,31 +151,30 @@ export default function DummyPaystack({
           )}
 
           {step === 'processing' && (
-            <div className="py-12 flex flex-col items-center justify-center animate-in zoom-in duration-300">
-              <div className="w-16 h-16 relative flex items-center justify-center mb-6">
+            <div className="py-10 flex flex-col items-center justify-center animate-in zoom-in duration-300">
+              <div className="w-14 h-14 relative flex items-center justify-center mb-5">
                 <div className="absolute inset-0 border-4 border-gray-100 border-t-[#0ba4db] rounded-full animate-spin"></div>
-                <svg className="w-6 h-6 text-[#0ba4db] animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" /></svg>
+                <svg className="w-5 h-5 text-[#0ba4db] animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" /></svg>
               </div>
-              <p className="text-base font-bold text-[#0a1128]">Confirming Transfer...</p>
-              <p className="text-sm text-gray-500 mt-2 text-center">We are waiting for the bank to confirm your ₦{amount.toLocaleString()} deposit.</p>
+              <p className="text-sm font-bold text-[#0a1128]">Confirming Transfer...</p>
+              <p className="text-[11px] text-gray-500 mt-2 text-center">Waiting for bank confirmation.</p>
             </div>
           )}
 
           {step === 'success' && (
-            <div className="py-12 flex flex-col items-center justify-center animate-in zoom-in duration-300">
-              <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6 border-4 border-green-100">
-                <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+            <div className="py-10 flex flex-col items-center justify-center animate-in zoom-in duration-300">
+              <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mb-5 border-4 border-green-100">
+                <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
               </div>
-              <p className="text-xl font-bold text-[#0a1128]">Transfer Received!</p>
-              <p className="text-sm text-gray-500 mt-2">Your dashboard is updating...</p>
+              <p className="text-lg font-bold text-[#0a1128]">Transfer Received!</p>
+              <p className="text-[11px] text-gray-500 mt-2">Updating your dashboard...</p>
             </div>
           )}
-
         </div>
         
-        <div className="bg-gray-50 p-3 text-center border-t border-gray-100">
-          <p className="text-[10px] font-bold text-gray-400 flex items-center justify-center gap-1.5 uppercase tracking-widest">
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
+        <div className="bg-gray-50 p-2.5 text-center border-t border-gray-100">
+          <p className="text-[9px] font-bold text-gray-400 flex items-center justify-center gap-1 uppercase tracking-widest">
+            <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
             Secured by DummyStack
           </p>
         </div>
