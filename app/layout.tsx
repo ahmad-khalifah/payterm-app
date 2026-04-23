@@ -24,11 +24,17 @@ export default function RootLayout({
   return (
     // The variable is injected here
     <html lang="en" className={`${jakarta.variable}`}>
-      {/* ADDED: overflow-x-hidden and w-full 
-        This is the silver bullet that strictly prevents mobile screens from stretching sideways 
-      */}
-      <body className="font-sans antialiased text-gray-900 bg-gray-50 w-full overflow-x-hidden">
-        {children}
+      <body className="font-sans antialiased text-gray-900 bg-gray-50 w-full overflow-x-hidden flex flex-col min-h-screen">
+        
+        {/* THE GLOBAL FIX: 
+          We wrap the entire app in this <main> tag.
+          'px-4' guarantees a minimum of 16px padding on mobile phones.
+          'max-w-7xl mx-auto' keeps it perfectly centered on giant desktop monitors.
+        */}
+        <main className="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+          {children}
+        </main>
+
       </body>
     </html>
   )
