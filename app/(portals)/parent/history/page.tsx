@@ -106,78 +106,120 @@ export default function PaymentHistory() {
   if (loading) return <div className="p-10 text-center font-bold text-[#0a1128] tracking-widest uppercase h-screen flex items-center justify-center animate-pulse">Loading Ledger...</div>
 
   return (
-    <div className="p-4 sm:p-6 lg:p-10 max-w-5xl mx-auto animate-in fade-in">
+    <div className="w-full max-w-5xl mx-auto md:p-6 lg:p-10 animate-in fade-in pb-24">
       
       {/* HEADER */}
-      <div className="mb-8 md:mb-10 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
+      <div className="p-5 md:p-0 mb-4 md:mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#0a1128] mb-2 tracking-tight">Payment History</h1>
-          <p className="text-gray-500 text-sm sm:text-base">Official ledger of all successful mandate debits and transfers.</p>
+          <button onClick={() => window.location.href = '/parent'} className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 bg-white border border-gray-200 px-4 py-2 rounded-full shadow-sm transition-all mb-4 md:hidden">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            Back to Home
+          </button>
+          <h1 className="text-3xl font-extrabold text-gray-900 mb-2 tracking-tight">Payment History</h1>
+          <p className="text-gray-500 text-base">A record of your past school fee payments.</p>
         </div>
-        <button onClick={() => window.location.href = '/parent'} className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1.5">
+        <button onClick={() => window.location.href = '/parent'} className="hidden md:flex text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors items-center gap-1.5">
           &larr; Back to Dashboard
         </button>
       </div>
-
-      {/* LEDGER TABLE */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        {transactions.length === 0 ? (
-          <div className="p-12 text-center text-gray-500 font-medium">No payment history found. Pay an installment to generate a receipt.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm border-collapse">
-              <thead className="bg-gray-50/50 border-b border-gray-200 text-[#0a1128]">
-                <tr>
-                  <th className="p-5 font-bold uppercase tracking-wide text-xs">Date & Time</th>
-                  <th className="p-5 font-bold uppercase tracking-wide text-xs">Student / Class</th>
-                  <th className="p-5 font-bold uppercase tracking-wide text-xs">Description</th>
-                  <th className="p-5 font-bold uppercase tracking-wide text-xs text-right">Amount</th>
-                  <th className="p-5 font-bold uppercase tracking-wide text-xs text-center">Receipt</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {transactions.map((tx) => {
-                  const timeString = new Date(tx.created_at).toLocaleString('en-US', {
-                    month: 'short', day: 'numeric', year: 'numeric',
-                    hour: 'numeric', minute: '2-digit', hour12: true
-                  });
-
-                  return (
-                    <tr key={tx.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="p-5 text-gray-600 font-medium whitespace-nowrap">
-                        {timeString}
-                      </td>
-                      <td className="p-5">
-                        <div className="font-bold text-[#0a1128]">{tx.student_name}</div>
-                        {tx.student_class && tx.student_class !== 'N/A' && (
-                          <div className="text-xs text-gray-500 mt-1">{tx.student_class}</div>
-                        )}
-                      </td>
-                      <td className="p-5">
-                        <span className="inline-flex items-center gap-1.5 py-1 px-2.5 rounded-md bg-green-50 text-green-700 font-bold text-[10px] uppercase tracking-wider border border-green-200 shadow-sm">
-                          <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                          {tx.description}
-                        </span>
-                      </td>
-                      <td className="p-5 font-bold text-[#0a1128] text-right font-mono text-base">
-                        ₦{Number(tx.amount).toLocaleString()}.00
-                      </td>
-                      <td className="p-5 text-center">
-                        <button 
-                          onClick={() => handleDownloadReceipt(tx)}
-                          className="bg-[#0a1128] text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-[#15234b] shadow-sm transition-colors uppercase tracking-wider"
-                        >
-                          Download PDF
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+  
+      {transactions.length === 0 ? (
+        <div className="bg-white p-12 rounded-3xl border border-gray-200 text-center text-gray-500 font-medium mx-5 md:mx-0 shadow-sm">
+          No payment history found. Make a payment to generate a receipt.
+        </div>
+      ) : (
+        <>
+          {/* MOBILE VIEW: Stacked Cards */}
+          <div className="md:hidden flex flex-col gap-4 px-5">
+            {transactions.map((tx) => {
+              const timeString = new Date(tx.created_at).toLocaleString('en-US', {
+                month: 'short', day: 'numeric', year: 'numeric'
+              });
+  
+              return (
+                <div key={tx.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="font-bold text-gray-900 text-base">{tx.student_name}</h3>
+                      <p className="text-sm text-gray-500">{tx.student_class || 'General Payment'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-black text-lg text-gray-900">₦{Number(tx.amount).toLocaleString()}</p>
+                      <span className="inline-block mt-1 py-1 px-2.5 rounded-full bg-green-50 text-green-700 font-bold text-[10px] uppercase tracking-wider">
+                        Successful
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center pt-4 border-t border-gray-50">
+                    <span className="text-sm font-medium text-gray-400">{timeString}</span>
+                    <button 
+                      onClick={() => handleDownloadReceipt(tx)}
+                      className="text-blue-600 font-bold text-sm bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors active:scale-95"
+                    >
+                      Receipt
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
-        )}
-      </div>
+  
+          {/* DESKTOP VIEW: Clean Table */}
+          <div className="hidden md:block bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm border-collapse">
+                <thead className="bg-gray-50/50 border-b border-gray-100 text-gray-500">
+                  <tr>
+                    <th className="p-6 font-bold uppercase tracking-wider text-xs">Date</th>
+                    <th className="p-6 font-bold uppercase tracking-wider text-xs">Student details</th>
+                    <th className="p-6 font-bold uppercase tracking-wider text-xs">Status</th>
+                    <th className="p-6 font-bold uppercase tracking-wider text-xs text-right">Amount paid</th>
+                    <th className="p-6 font-bold uppercase tracking-wider text-xs text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {transactions.map((tx) => {
+                    const timeString = new Date(tx.created_at).toLocaleString('en-US', {
+                      month: 'short', day: 'numeric', year: 'numeric',
+                      hour: 'numeric', minute: '2-digit', hour12: true
+                    });
+  
+                    return (
+                      <tr key={tx.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="p-6 text-gray-600 font-medium whitespace-nowrap">
+                          {timeString}
+                        </td>
+                        <td className="p-6">
+                          <div className="font-bold text-gray-900 text-base">{tx.student_name}</div>
+                          {tx.student_class && tx.student_class !== 'N/A' && (
+                            <div className="text-sm text-gray-500 mt-1">{tx.student_class}</div>
+                          )}
+                        </td>
+                        <td className="p-6">
+                          <span className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-full bg-green-50 text-green-700 font-bold text-[11px] uppercase tracking-wider">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                            Success
+                          </span>
+                        </td>
+                        <td className="p-6 font-black text-gray-900 text-right text-lg">
+                          ₦{Number(tx.amount).toLocaleString()}
+                        </td>
+                        <td className="p-6 text-center">
+                          <button 
+                            onClick={() => handleDownloadReceipt(tx)}
+                            className="bg-gray-100 text-gray-900 px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors"
+                          >
+                            Download
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
     </div>
-  )
-}
+  )}

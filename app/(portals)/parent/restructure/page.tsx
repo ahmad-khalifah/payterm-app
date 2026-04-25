@@ -69,55 +69,57 @@ export default function Restructure() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-10 max-w-3xl mx-auto animate-in fade-in">
+    <div className="w-full max-w-2xl mx-auto md:p-6 lg:p-10 animate-in fade-in pb-24">
       
       {/* HEADER SECTION */}
-      <div className="mb-8 md:mb-10">
-        <h1 className="text-2xl sm:text-3xl font-bold text-[#0a1128] mb-2 tracking-tight">Plan Restructuring</h1>
-        <p className="text-gray-500 text-sm sm:text-base">Request a payment pause or school transfer adjustment.</p>
+      <div className="p-5 md:p-0 mb-2 md:mb-8">
+        <h1 className="text-3xl font-extrabold text-gray-900 mb-2 tracking-tight">Adjust Plan</h1>
+        <p className="text-gray-500 text-base">Need to pause payments or change your child's school? Let us know.</p>
       </div>
-
-      {/* RESTRUCTURING FORM */}
-      <form onSubmit={handleSubmit} className="bg-white p-6 sm:p-8 rounded-2xl border border-gray-200 shadow-sm space-y-6">
-        
-        <div>
-          <label className="block text-sm font-bold text-[#0a1128] mb-2.5">Select Child</label>
-          <select 
-            value={selectedStudent}
-            onChange={(e) => setSelectedStudent(e.target.value)}
-            className="w-full border border-gray-300 p-3.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-600 text-[#0a1128] transition-all bg-white font-medium appearance-none shadow-sm"
+  
+      {/* FORM CARD */}
+      <div className="bg-white md:rounded-3xl border-y md:border border-gray-200 md:shadow-sm overflow-hidden">
+        <form onSubmit={handleSubmit} className="p-5 md:p-8 space-y-6">
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Select Child</label>
+            <select 
+              value={selectedStudent}
+              onChange={(e) => setSelectedStudent(e.target.value)}
+              className="w-full border border-gray-200 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 bg-gray-50 focus:bg-white text-gray-900 font-medium transition-all appearance-none"
+            >
+              {students.length === 0 ? (
+                <option value="" disabled>No students linked to your account</option>
+              ) : (
+                students.map(s => (
+                  <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
+                ))
+              )}
+            </select>
+          </div>
+  
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">What do you need help with?</label>
+            <textarea 
+              required
+              rows={4}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. My child is transferring to a new school next month, and I need to update my payment plan."
+              className="w-full border border-gray-200 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 bg-gray-50 focus:bg-white text-gray-900 transition-all resize-none text-base"
+            ></textarea>
+          </div>
+  
+          <button 
+            type="submit" 
+            disabled={loading || !selectedStudent || !reason}
+            className="w-full bg-[#0a1128] hover:bg-blue-600 text-white py-4 rounded-2xl font-bold text-base transition-all disabled:bg-gray-200 disabled:text-gray-400 active:scale-[0.98] mt-4"
           >
-            {students.length === 0 ? (
-              <option value="" disabled>No students linked to your account</option>
-            ) : (
-              students.map(s => (
-                <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
-              ))
-            )}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-bold text-[#0a1128] mb-2.5">Reason for Restructuring</label>
-          <textarea 
-            required
-            rows={4}
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="e.g. My child is transferring to a new partner school next month."
-            className="w-full border border-gray-300 p-3.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-600 text-[#0a1128] transition-all resize-none text-sm shadow-sm"
-          ></textarea>
-        </div>
-
-        <button 
-          type="submit" 
-          disabled={loading || !selectedStudent || !reason}
-          className="w-full bg-blue-600 text-white p-3.5 rounded-xl font-bold disabled:bg-blue-300 hover:bg-blue-700 transition-colors shadow-sm mt-2"
-        >
-          {loading ? 'Submitting Request...' : 'Submit Request'}
-        </button>
-        
-      </form>
+            {loading ? 'Sending Request...' : 'Submit Request'}
+          </button>
+          
+        </form>
+      </div>
     </div>
   )
 }
