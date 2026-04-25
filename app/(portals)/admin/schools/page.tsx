@@ -13,59 +13,64 @@ export default function AdminSchoolsPage() {
   
   const [platformEscrow, setPlatformEscrow] = useState(0)
 
-  // 1. Safely fetch schools and traverse to active_plans to calculate Escrow
+  // 1. BULLETPROOF FETCH: No nested Supabase joins to crash the app!
   const fetchSchoolsAndEscrow = async () => {
     try {
-      const { data: schoolData, error: schoolError } = await supabase
+      // Step 1: Fetch ALL schools directly
+      const { data: schoolsData, error: schoolError } = await supabase
         .from('partner_schools')
-        .select(`
-          *,
-          students (
-            active_plans (
-              status,
-              total_fee,
-              amount_paid
-            )
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false })
 
       if (schoolError) throw schoolError
 
+      // If no schools exist (like right after a TRUNCATE), stop here.
+      if (!schoolsData || schoolsData.length === 0) {
+        setSchools([])
+        setPlatformEscrow(0)
+        return
+      }
+
+      // Step 2: Fetch ALL active plans directly
+      const { data: plansData, error: plansError } = await supabase
+        .from('active_plans')
+        .select('school_id, status, amount_paid, total_fee')
+
+      // If plans fail to fetch (e.g., table is empty), default to an empty array
+      const safePlans = plansData || []
+
       let globalEscrow = 0
 
-      if (schoolData) {
-        const augmentedSchools = schoolData.map(school => {
-          let schoolEscrow = 0
-          
-          // Safely traverse the relational data
-          if (school.students) {
-            school.students.forEach((student: any) => {
-              if (student.active_plans) {
-                student.active_plans.forEach((plan: any) => {
-                  // Only count plans that have actually received payments
-                  if ((plan.status === 'Pending Verification' || plan.status === 'Pending Escrow') && plan.amount_paid > 0) {
-                    const baseTuition = Number(plan.total_fee) / 1.05
-                    const schoolTranche = baseTuition * 0.80
-                    schoolEscrow += schoolTranche
-                    globalEscrow += schoolTranche
-                  }
-                })
-              }
-            })
-          }
+      // Step 3: Match the plans to their schools using standard JavaScript
+      const augmentedSchools = schoolsData.map(school => {
+        let schoolEscrow = 0
+        
+        // Find plans that belong to this specific school
+        const schoolPlans = safePlans.filter(p => p.school_id === school.id)
 
-          return {
-            ...school,
-            unclaimed_escrow: schoolEscrow
+        schoolPlans.forEach(plan => {
+          // Only count plans sitting in Escrow
+          const isEscrow = plan.status === 'Pending Verification' || plan.status === 'Pending Escrow'
+          if (isEscrow && Number(plan.amount_paid) > 0) {
+            const baseTuition = Number(plan.total_fee) / 1.05
+            const schoolTranche = baseTuition * 0.80
+            schoolEscrow += schoolTranche
+            globalEscrow += schoolTranche
           }
         })
+
+        return {
+          ...school,
+          unclaimed_escrow: schoolEscrow
+        }
+      })
         
-        setPlatformEscrow(globalEscrow)
-        setSchools(augmentedSchools)
-      }
+      setPlatformEscrow(globalEscrow)
+      setSchools(augmentedSchools)
+      
     } catch (err: any) {
-      console.error("Fetch error:", JSON.stringify(err, null, 2))
+      console.error("HQ Fetch Error:", err)
+      if (err.message) alert("Fetch Error: " + err.message)
     } finally {
       setLoading(false)
     }
