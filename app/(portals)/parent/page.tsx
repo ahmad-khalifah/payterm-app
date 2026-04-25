@@ -43,7 +43,7 @@ export default function ParentDashboard() {
       const { data: students, error: studentError } = await supabase
         .from('students')
         .select(`
-          id, full_name, school_id, student_class, enrollment_status,
+          id, full_name, partner_schools, student_class, enrollment_status,
           active_plans ( 
             id, total_fee, amount_paid, next_payment_date, status, clearance_code, mid_term_cleared,
             payment_history ( id, amount, receipt_number, payment_date, status )
@@ -90,7 +90,7 @@ export default function ParentDashboard() {
         const { data: students, error: studentError } = await supabase
           .from('students')
           .select(`
-            id, full_name, school_id, student_class, enrollment_status,
+            id, full_name, partner_schools, student_class, enrollment_status,
             active_plans ( 
               id, total_fee, amount_paid, next_payment_date, status, clearance_code, mid_term_cleared,
               payment_history ( id, amount, receipt_number, payment_date, status )
@@ -295,7 +295,7 @@ export default function ParentDashboard() {
 
                 {/* Subtitle */}
                 <p className="text-xs text-gray-500 truncate mb-5">
-                  {child.student_class ? `${child.student_class} • ` : ''} {child.school_id}
+                  {child.student_class ? `${child.student_class} • ` : ''} {child.partner_schools?.name}
                 </p>
 
                 {/* Financials & Progress */}
