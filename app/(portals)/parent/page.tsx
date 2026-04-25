@@ -89,11 +89,13 @@ export default function ParentDashboard() {
           .from('students')
           .select(`
             id, full_name, school_id, student_class, enrollment_status,
+            schools ( name ), 
             active_plans ( 
               id, total_fee, amount_paid, next_payment_date, status, clearance_code, mid_term_cleared,
               payment_history ( id, amount, receipt_number, payment_date, status )
             )
           `)
+
           .eq('parent_id', session.user.id)
           .order('created_at', { ascending: false });
 
@@ -293,7 +295,7 @@ export default function ParentDashboard() {
 
                 {/* Subtitle */}
                 <p className="text-xs text-gray-500 truncate mb-6">
-                  {child.student_class ? `${child.student_class} • ` : ''} {child.school_id}
+                  {child.student_class ? `${child.student_class} • ` : ''} {child.schools?.name}
                 </p>
 
                 {/* Financials & Progress */}
