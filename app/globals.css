@@ -5,6 +5,22 @@
   --foreground: #171717;
 }
 
+@layer base {
+  /* Shrinks the entire app by ~12.5% on tablets and phones */
+  @media (max-width: 768px) {
+    html {
+      font-size: 14px; 
+    }
+  }
+
+  /* Shrinks the entire app by ~18% on smaller phones */
+  @media (max-width: 480px) {
+    html {
+      font-size: 13px; 
+    }
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
