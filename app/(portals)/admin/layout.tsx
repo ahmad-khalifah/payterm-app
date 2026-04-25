@@ -17,6 +17,7 @@ export default function AdminLayout({
     { name: 'Dashboard', href: '/admin' },
     { name: 'Schools & Verification', href: '/admin/schools' },
     { name: 'Parents Ledger', href: '/admin/parents' },
+    { name: 'Registered Users', href: '/admin/directory' }, 
     { name: 'Payouts & Withdrawals', href: '/admin/payouts' },
     { name: 'Reports', href: '/admin/reports' },
     { name: 'Settings', href: '/admin/settings' },
