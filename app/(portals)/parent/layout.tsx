@@ -39,7 +39,7 @@ export default function ParentLayout({
       {/* MOBILE TOP NAVIGATION BAR */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-[#0a1128] text-white flex items-center justify-between px-4 z-50 shadow-md">
         <h2 className="text-lg font-extrabold tracking-tight">
-          <span className="text-white">PayTerm</span> <span className="text-blue-500">Schools</span>
+          <span className="text-white">PayTerm</span> <span className="text-blue-500">Parents</span>
         </h2>
         <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 -mr-2 text-gray-300 active:scale-95 transition-transform">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
