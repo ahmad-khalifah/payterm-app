@@ -12,7 +12,10 @@ export default function AdminSidebar() {
     { name: 'Platform Overview', href: '/admin' },
     { name: 'Manage Schools', href: '/admin/schools' },
     { name: 'Withdrawal Approvals', href: '/admin/payouts' },
-    { name: 'Parent Collections', href: '/admin/parents' },
+    // Renamed for clarity, but keeps your existing file path
+    { name: 'Financial Ledger', href: '/admin/parents' }, 
+    // The new directory page you are adding
+    { name: 'Registered Users', href: '/admin/directory' }, 
     { name: 'System Settings', href: '/admin/settings' },
   ]
 
