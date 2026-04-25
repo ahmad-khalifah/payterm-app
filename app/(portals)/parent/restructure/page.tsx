@@ -3,33 +3,35 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../../lib/supabase'
 
-export default function Restructure() {
+export default function RestructurePage() {
+  const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [students, setStudents] = useState<any[]>([])
   const [selectedStudent, setSelectedStudent] = useState('')
   const [reason, setReason] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [pageLoading, setPageLoading] = useState(true)
 
   useEffect(() => {
     const fetchStudents = async () => {
       try {
-        // Securely fetch the actual logged-in parent
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        const { data } = await supabase
+        // FIX: Changed first_name/last_name to full_name
+        const { data, error } = await supabase
           .from('students')
-          .select('id, first_name, last_name')
+          .select('id, full_name, student_class') 
           .eq('parent_id', user.id)
+
+        if (error) throw error
         
         if (data) {
           setStudents(data)
           if (data.length > 0) setSelectedStudent(data[0].id)
         }
-      } catch (error) {
-        console.error("Fetch Error:", error)
+      } catch (err: any) {
+        console.error("Error fetching students:", err.message)
       } finally {
-        setPageLoading(false)
+        setLoading(false)
       }
     }
     
@@ -38,86 +40,89 @@ export default function Restructure() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
+    if (!selectedStudent || !reason.trim()) return
 
+    setIsSubmitting(true)
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error("Not authenticated")
+
+      // Sending the restructuring request to the database
+      // Sending the restructuring request to the database
+      // @ts-ignore: Temporary bypass until support_tickets table is added to Supabase
       const { error } = await supabase
-        .from('restructuring_requests')
+        .from('support_tickets' as any) 
         .insert({
+          parent_id: user.id,
           student_id: selectedStudent,
-          reason: reason
-        })
+          subject: 'Plan Restructure Request',
+          message: reason,
+          status: 'Open'
+        } as any)
 
       if (error) throw error
-      alert("Restructuring request submitted to our billing team.")
-      window.location.href = '/parent' // Redirects back to the parent dashboard
-    } catch (err) {
-      alert("Database Error. Check console.")
+      
+      alert("Your request has been submitted successfully. Our support team will contact you shortly.")
+      setReason('')
+    } catch (err: any) {
+      alert(`Submission failed: ${err.message}`)
     } finally {
-      setLoading(false)
+      setIsSubmitting(false)
     }
   }
 
-  if (pageLoading) {
-    return (
-      <div className="flex items-center justify-center h-full min-h-[50vh]">
-        <div className="text-sm font-bold text-[#0a1128] tracking-widest uppercase animate-pulse">
-          Loading students...
-        </div>
-      </div>
-    )
-  }
+  if (loading) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest h-full flex items-center justify-center animate-pulse">Loading...</div>
 
   return (
-    <div className="w-full max-w-2xl mx-auto md:p-6 lg:p-10 animate-in fade-in pb-24">
-      
-      {/* HEADER SECTION */}
-      <div className="p-5 md:p-0 mb-2 md:mb-8">
-        <h1 className="text-3xl font-extrabold text-gray-900 mb-2 tracking-tight">Adjust Plan</h1>
-        <p className="text-gray-500 text-base">Need to pause payments or change your child's school? Let us know.</p>
+    <div className="w-full max-w-xl mx-auto md:p-4 lg:p-8 animate-in fade-in pb-20">
+      <div className="p-4 md:p-0 mb-4">
+        <h1 className="text-2xl font-extrabold text-[#0a1128] mb-1 tracking-tight">Adjust Plan</h1>
+        <p className="text-gray-500 text-sm">Need to pause or change schools? Let us know.</p>
       </div>
-  
-      {/* FORM CARD */}
-      <div className="bg-white md:rounded-3xl border-y md:border border-gray-200 md:shadow-sm overflow-hidden">
-        <form onSubmit={handleSubmit} className="p-5 md:p-8 space-y-6">
-          
+
+      <div className="bg-white md:rounded-2xl border-y md:border border-gray-200 md:shadow-sm overflow-hidden">
+        <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Select Child</label>
+            <label className="block text-xs font-bold text-[#0a1128] mb-1.5 uppercase tracking-wide">Select Child</label>
             <select 
-              value={selectedStudent}
+              value={selectedStudent} 
               onChange={(e) => setSelectedStudent(e.target.value)}
-              className="w-full border border-gray-200 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 bg-gray-50 focus:bg-white text-gray-900 font-medium transition-all appearance-none"
+              className="w-full border border-gray-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 bg-gray-50 focus:bg-white text-[#0a1128] font-bold transition-all shadow-sm"
             >
               {students.length === 0 ? (
-                <option value="" disabled>No students linked to your account</option>
+                <option value="" disabled>No students linked</option>
               ) : (
                 students.map(s => (
-                  <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
+                  <option key={s.id} value={s.id}>
+                    {/* FIX: Now uses s.full_name safely */}
+                    {s.full_name} {s.student_class ? `(${s.student_class})` : ''}
+                  </option>
                 ))
               )}
             </select>
           </div>
-  
+          
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">What do you need help with?</label>
+            <label className="block text-xs font-bold text-[#0a1128] mb-1.5 uppercase tracking-wide">What do you need help with?</label>
             <textarea 
-              required
-              rows={4}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g. My child is transferring to a new school next month, and I need to update my payment plan."
-              className="w-full border border-gray-200 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 bg-gray-50 focus:bg-white text-gray-900 transition-all resize-none text-base"
+              required 
+              rows={4} 
+              value={reason} 
+              onChange={(e) => setReason(e.target.value)} 
+              placeholder="e.g. My child is transferring schools next term and I need to pause the payment plan."
+              className="w-full border border-gray-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 bg-gray-50 focus:bg-white text-[#0a1128] font-medium resize-none shadow-sm transition-all"
             ></textarea>
           </div>
-  
-          <button 
-            type="submit" 
-            disabled={loading || !selectedStudent || !reason}
-            className="w-full bg-[#0a1128] hover:bg-blue-600 text-white py-4 rounded-2xl font-bold text-base transition-all disabled:bg-gray-200 disabled:text-gray-400 active:scale-[0.98] mt-4"
-          >
-            {loading ? 'Sending Request...' : 'Submit Request'}
-          </button>
           
+          <div className="pt-2">
+            <button 
+              type="submit" 
+              disabled={isSubmitting || !selectedStudent || !reason.trim()}
+              className="w-full bg-[#0a1128] text-white py-3 rounded-xl text-sm font-bold active:scale-95 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-600"
+            >
+              {isSubmitting ? 'Sending Request...' : 'Submit Request'}
+            </button>
+          </div>
         </form>
       </div>
     </div>

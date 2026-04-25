@@ -103,7 +103,7 @@ export default function PayoutsPage() {
         setSchoolId(session.user.id)
         
         // 3. Immediately fetch payouts using guaranteed data
-        await fetchPayoutData(session.user.id, schoolProfile.name, isMounted)
+        await fetchPayoutData(session.user.id, schoolProfile.name as string, isMounted)
       }
     } catch (err) {
       console.error("Initialization Error:", err)
