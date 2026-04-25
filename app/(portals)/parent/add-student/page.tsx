@@ -137,94 +137,66 @@ export default function AddStudentPage() {
   const activeClassData = availableClasses.find(c => c.class_name === form.className)
 
   return (
-    <div className="p-4 sm:p-6 lg:p-10 max-w-3xl mx-auto animate-in fade-in pb-24">
+    <div className="w-full max-w-xl mx-auto md:p-4 lg:p-6 animate-in fade-in pb-20">
       
-      {/* HEADER WITH BACK BUTTON */}
-      <div className="mb-8">
-        <Link href="/parent" className="inline-flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-[#0a1128] transition-colors mb-6 bg-white border border-gray-200 px-4 py-2 rounded-full shadow-sm">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-          Back to Dashboard
+      <div className="p-4 md:p-0 mb-2 md:mb-5">
+        <Link href="/parent" className="inline-flex items-center gap-2 text-xs font-medium text-gray-600 hover:text-gray-900 bg-white border border-gray-200 px-3 py-1.5 rounded-full shadow-sm transition-all mb-4">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+          Back
         </Link>
-        <h1 className="text-3xl font-bold text-[#0a1128] mb-2 tracking-tight">Link a Student</h1>
-        <p className="text-gray-500 text-sm">Securely connect your child to a partner institution and generate their custom 60/40 financing plan.</p>
+        <h1 className="text-2xl font-extrabold text-gray-900 mb-1 tracking-tight">Add Your Child</h1>
+        <p className="text-gray-500 text-sm">Select their school and set up a flexible payment plan.</p>
       </div>
-
-      {/* MAIN FORM CARD */}
-      <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
+  
+      <div className="bg-white md:rounded-2xl md:border md:border-gray-200 md:shadow-lg overflow-hidden border-y border-gray-200">
         <form onSubmit={handleLinkStudent}>
           
-          {/* SECTION 1: Personal Details */}
-          <div className="p-6 sm:p-8 border-b border-gray-100 bg-gray-50/50">
-            <h2 className="text-sm font-bold text-[#0a1128] uppercase tracking-widest mb-6 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs">1</span>
-              Personal Details
+          {/* Child Details */}
+          <div className="p-4 md:p-6 border-b border-gray-100">
+            <h2 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xs">1</span>
+              Child's Details
             </h2>
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Student's Full Name</label>
-              <input 
-                required 
-                type="text" 
-                placeholder="First and Last Name"
-                value={form.fullName} 
-                onChange={e => setForm({...form, fullName: e.target.value})} 
-                className="w-full bg-white border border-gray-200 p-4 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent text-[#0a1128] font-medium shadow-sm transition-all"
-              />
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Child's Full Name</label>
+              <input required type="text" placeholder="e.g. John Doe" value={form.fullName} onChange={e => setForm({...form, fullName: e.target.value})} 
+                className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-gray-900 font-medium transition-all" />
             </div>
           </div>
-
-          {/* SECTION 2: Institutional Routing */}
-          <div className="p-6 sm:p-8 border-b border-gray-100">
-            <h2 className="text-sm font-bold text-[#0a1128] uppercase tracking-widest mb-6 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs">2</span>
-              Institution
+  
+          {/* School Info */}
+          <div className="p-4 md:p-6 border-b border-gray-100">
+            <h2 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xs">2</span>
+              School Information
             </h2>
-            
-            <div className="space-y-6">
+            <div className="space-y-4">
               <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide">Select Partner School</label>
-                  {loadingSchools && <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider animate-pulse bg-blue-50 px-2 py-1 rounded">Loading Network...</span>}
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="block text-xs font-medium text-gray-700">Select School</label>
+                  {loadingSchools && <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full animate-pulse">Loading...</span>}
                 </div>
-                <select 
-                  required 
-                  value={form.schoolName} 
-                  onChange={e => setForm({...form, schoolName: e.target.value, className: ''})} 
-                  className="w-full border border-gray-200 p-4 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 bg-gray-50 text-[#0a1128] font-bold shadow-sm transition-all disabled:opacity-50"
-                  disabled={loadingSchools}
-                >
-                  <option value="" disabled>-- Select verified institution --</option>
-                  {schools.map((school, idx) => (
-                    <option key={idx} value={school.name}>{school.name}</option>
-                  ))}
+                <select required value={form.schoolName} onChange={e => setForm({...form, schoolName: e.target.value, className: ''})} disabled={loadingSchools}
+                  className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-gray-900 font-medium transition-all disabled:opacity-50">
+                  <option value="" disabled>Tap to select school</option>
+                  {schools.map((school, idx) => (<option key={idx} value={school.name}>{school.name}</option>))}
                 </select>
               </div>
-
-              <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-all duration-300 ${!form.schoolName ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Academic Session</label>
-                  <select 
-                    required 
-                    value={form.session} 
-                    onChange={e => setForm({...form, session: e.target.value})} 
-                    className="w-full border border-gray-200 p-4 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 bg-gray-50 text-[#0a1128] font-bold shadow-sm transition-all"
-                    disabled={!form.schoolName}
-                  >
-                    <option value="" disabled>-- Session --</option>
+              <div className={`flex flex-col md:flex-row gap-4 transition-all duration-300 ${!form.schoolName ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">School Year</label>
+                  <select required value={form.session} onChange={e => setForm({...form, session: e.target.value})} disabled={!form.schoolName}
+                    className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-gray-900 font-medium transition-all">
+                    <option value="" disabled>Select year</option>
                     <option value="2024/2025">2024/2025</option>
                     <option value="2025/2026">2025/2026</option>
-                    <option value="2026/2027">2026/2027</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Term</label>
-                  <select 
-                    required 
-                    value={form.term} 
-                    onChange={e => setForm({...form, term: e.target.value})} 
-                    className="w-full border border-gray-200 p-4 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 bg-gray-50 text-[#0a1128] font-bold shadow-sm transition-all"
-                    disabled={!form.schoolName}
-                  >
-                    <option value="" disabled>-- Term --</option>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Term</label>
+                  <select required value={form.term} onChange={e => setForm({...form, term: e.target.value})} disabled={!form.schoolName}
+                    className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-gray-900 font-medium transition-all">
+                    <option value="" disabled>Select term</option>
                     <option value="First Term">First Term</option>
                     <option value="Second Term">Second Term</option>
                     <option value="Third Term">Third Term</option>
@@ -233,50 +205,40 @@ export default function AddStudentPage() {
               </div>
             </div>
           </div>
-
-          {/* SECTION 3: Financial Configuration */}
-          <div className={`p-6 sm:p-8 bg-blue-50/30 transition-all duration-300 ${!form.schoolName || !form.session || !form.term ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
-            <h2 className="text-sm font-bold text-[#0a1128] uppercase tracking-widest mb-6 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs">3</span>
-              Class & Fee Selection
+  
+          {/* Payment Setup */}
+          <div className={`p-4 md:p-6 bg-gray-50/50 transition-all duration-300 ${!form.schoolName || !form.session || !form.term ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
+            <h2 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xs">3</span>
+              Class & Payment Setup
             </h2>
-            
             {form.schoolName && form.session && form.term && availableClasses.length === 0 && !loadingClasses ? (
-              <div className="p-5 bg-orange-50 border border-orange-200 rounded-xl text-orange-800 text-sm font-bold flex items-start gap-3">
-                <svg className="w-5 h-5 shrink-0 text-orange-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                This school has not locked in any fee configurations for the selected term. Please adjust the timeline or contact the administrator.
+              <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-700 text-xs font-medium flex gap-2">
+                <svg className="w-4 h-4 shrink-0 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                School hasn't added fees for this term yet. Contact them directly.
               </div>
             ) : (
-              <div className="space-y-6">
-                <select 
-                  required 
-                  value={form.className} 
-                  onChange={e => setForm({...form, className: e.target.value})} 
-                  className="w-full border border-blue-200 p-4 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 bg-white text-[#0a1128] font-bold shadow-sm transition-all"
-                  disabled={loadingClasses || availableClasses.length === 0}
-                >
-                  <option value="" disabled>
-                    {loadingClasses ? 'Synchronizing school fees...' : '-- Select student class --'}
-                  </option>
-                  {availableClasses.map((cls, idx) => (
-                    <option key={idx} value={cls.class_name}>
-                      {cls.class_name}
-                    </option>
-                  ))}
-                </select>
-
-                {/* DYNAMIC FEE PREVIEW */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Child's Class</label>
+                  <select required value={form.className} onChange={e => setForm({...form, className: e.target.value})} disabled={loadingClasses || availableClasses.length === 0}
+                    className="w-full bg-white border border-gray-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 text-gray-900 font-medium shadow-sm transition-all">
+                    <option value="" disabled>{loadingClasses ? 'Fetching classes...' : 'Tap to select class'}</option>
+                    {availableClasses.map((cls, idx) => (<option key={idx} value={cls.class_name}>{cls.class_name}</option>))}
+                  </select>
+                </div>
+  
                 {activeClassData && (
-                  <div className="bg-white p-5 rounded-xl border border-blue-100 shadow-sm animate-in fade-in slide-in-from-top-2">
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Plan Overview</p>
-                    <div className="flex items-end justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Total Verified Invoice</p>
-                        <p className="text-2xl font-bold font-mono text-[#0a1128]">₦{Number(activeClassData.parent_total_fee).toLocaleString()}</p>
+                  <div className="bg-[#0a1128] p-4 rounded-xl shadow-md text-white animate-in zoom-in-95 duration-200">
+                    <p className="text-blue-300 text-xs font-medium mb-3">Payment Summary</p>
+                    <div className="flex flex-col gap-3">
+                      <div className="flex justify-between items-center pb-3 border-b border-white/10">
+                        <span className="text-gray-300 text-sm">Total Fees</span>
+                        <span className="text-lg font-bold">₦{Number(activeClassData.parent_total_fee).toLocaleString()}</span>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm text-gray-600 mb-1">Required Today (60%)</p>
-                        <p className="text-lg font-bold font-mono text-blue-600">₦{(Number(activeClassData.parent_total_fee) * 0.6).toLocaleString()}</p>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-300 text-sm">Due Today (60%)</span>
+                        <span className="text-xl font-black text-green-400">₦{(Number(activeClassData.parent_total_fee) * 0.6).toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
@@ -284,28 +246,14 @@ export default function AddStudentPage() {
               </div>
             )}
           </div>
-
-          {/* FOOTER ACTIONS */}
-          <div className="p-6 sm:p-8 border-t border-gray-100 bg-white flex justify-end">
-            <button 
-              type="submit" 
-              disabled={isSubmitting || !form.schoolName || !form.session || !form.term || !form.className} 
-              className="w-full sm:w-auto bg-[#0a1128] text-white px-8 py-4 rounded-xl font-bold hover:bg-[#15234b] disabled:bg-gray-300 disabled:text-gray-500 transition-all shadow-sm text-sm flex items-center justify-center gap-2"
-            >
-              {isSubmitting ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Generating Secure Plan...
-                </>
-              ) : (
-                'Generate 60/40 Plan & Proceed'
-              )}
+  
+          {/* Footer */}
+          <div className="p-4 md:p-6 border-t border-gray-100 bg-white">
+            <button type="submit" disabled={isSubmitting || !form.schoolName || !form.session || !form.term || !form.className} 
+              className="w-full bg-[#0a1128] hover:bg-blue-600 text-white py-3 rounded-xl font-bold text-sm transition-all disabled:bg-gray-200 disabled:text-gray-400 flex items-center justify-center gap-2 active:scale-[0.98]">
+              {isSubmitting ? 'Setting up plan...' : 'Continue to Payment Plan'}
             </button>
           </div>
-
         </form>
       </div>
     </div>
