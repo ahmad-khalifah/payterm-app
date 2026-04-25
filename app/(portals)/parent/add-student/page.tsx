@@ -16,19 +16,20 @@ export default function AddStudentPage() {
 
   const [form, setForm] = useState({
     fullName: '',
+    state: '', // NEW: Added State to form tracking
     schoolName: '',
     session: '',
     term: '',
     className: ''
   })
 
-  // 1. Fetch all ACTIVE partner schools
+  // 1. Fetch all ACTIVE partner schools and their states
   useEffect(() => {
     const fetchSchools = async () => {
       try {
         const { data, error } = await supabase
           .from('partner_schools')
-          .select('id, name') 
+          .select('id, name, state') // NEW: Fetch state column
           .eq('status', 'Active')
           .order('name', { ascending: true })
 
@@ -86,7 +87,7 @@ export default function AddStudentPage() {
       const selectedFeeConfig = availableClasses.find(c => c.class_name === form.className)
       if (!selectedFeeConfig) throw new Error("Invalid class selection.")
 
-      const selectedSchool = schools.find(s => s.name === form.schoolName)
+      const selectedSchool = schools.find(s => s.name === form.schoolName && s.state === form.state)
       if (!selectedSchool || !selectedSchool.id) throw new Error("Could not verify the internal School ID.")
 
       // 1. Insert the Student Profile
@@ -136,6 +137,10 @@ export default function AddStudentPage() {
 
   const activeClassData = availableClasses.find(c => c.class_name === form.className)
 
+  // NEW: Compute unique available states and filter schools dynamically
+  const availableStates = Array.from(new Set(schools.map(s => s.state).filter(Boolean))).sort()
+  const filteredSchools = form.state ? schools.filter(s => s.state === form.state) : []
+
   return (
     <div className="w-full max-w-xl mx-auto md:p-4 lg:p-6 animate-in fade-in pb-20">
       
@@ -171,17 +176,31 @@ export default function AddStudentPage() {
               School Information
             </h2>
             <div className="space-y-4">
+              
+              {/* NEW: State Selection */}
               <div>
                 <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-medium text-gray-700">Select School</label>
+                  <label className="block text-xs font-medium text-gray-700">School Location (State)</label>
                   {loadingSchools && <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full animate-pulse">Loading...</span>}
                 </div>
-                <select required value={form.schoolName} onChange={e => setForm({...form, schoolName: e.target.value, className: ''})} disabled={loadingSchools}
+                <select required value={form.state} disabled={loadingSchools}
+                  onChange={e => setForm({...form, state: e.target.value, schoolName: '', session: '', term: '', className: ''})} 
                   className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-gray-900 font-medium transition-all disabled:opacity-50">
-                  <option value="" disabled>Tap to select school</option>
-                  {schools.map((school, idx) => (<option key={idx} value={school.name}>{school.name}</option>))}
+                  <option value="" disabled>Select state</option>
+                  {availableStates.map(state => (<option key={state} value={state}>{state}</option>))}
                 </select>
               </div>
+
+              {/* UPDATED: Filtered School Selection */}
+              <div className={`transition-all duration-300 ${!form.state ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Select School</label>
+                <select required value={form.schoolName} onChange={e => setForm({...form, schoolName: e.target.value, session: '', term: '', className: ''})} disabled={!form.state}
+                  className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-gray-900 font-medium transition-all disabled:opacity-50">
+                  <option value="" disabled>Tap to select school</option>
+                  {filteredSchools.map((school, idx) => (<option key={idx} value={school.name}>{school.name}</option>))}
+                </select>
+              </div>
+
               <div className={`flex flex-col md:flex-row gap-4 transition-all duration-300 ${!form.schoolName ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
                 <div className="flex-1">
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">School Year</label>
