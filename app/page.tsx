@@ -15,7 +15,7 @@ export default function LandingPage() {
             <a href="#portals" className="hover:text-[#0a1128] transition-colors">Portals</a>
           </div>
           <Link href="#portals" className="bg-[#0a1128] text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-blue-600 transition-colors shadow-sm">
-            Access Dashboard
+            Get Started 
           </Link>
         </div>
       </nav>
@@ -39,7 +39,7 @@ export default function LandingPage() {
 
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <Link href="#portals" className="bg-blue-600 text-white px-8 py-4 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20">
-              Enter Platform
+              SIGNUP/LOGIN 
             </Link>
             <a href="#how-it-works" className="bg-white text-[#0a1128] border border-gray-200 px-8 py-4 rounded-xl text-sm font-bold hover:bg-gray-50 transition-colors shadow-sm">
               How it Works
