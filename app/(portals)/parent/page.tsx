@@ -117,6 +117,14 @@ export default function ParentDashboard() {
       if (paystackConfig?.isMidTerm) {
         await supabase.from('active_plans').update({ mid_term_cleared: true }).eq('id', paystackConfig.planId)
       }
+      
+      // NEW: Generate the Notification!
+      await supabase.from('notifications').insert({
+        parent_id: currentUserId,
+        title: 'Payment Successful',
+        message: `Your payment of ₦${paystackConfig?.amount.toLocaleString()} for ${paystackConfig?.studentName} was received successfully. Receipt: ${reference}`
+      })
+
       alert(`Payment confirmed! Receipt No: ${reference}`)
       setPaystackConfig(null)
       fetchDashboardData() 

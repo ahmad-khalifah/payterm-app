@@ -256,7 +256,7 @@ export default function PayoutsPage() {
                 >
                   <option value="" disabled>Select Bank</option>
                   {[
-                    "Access Bank", "First Bank", "GTBank", "United Bank for Africa (UBA)", 
+                    "Taj Bank", "First Bank", "GTBank", "United Bank for Africa (UBA)", 
                     "Zenith Bank", "Stanbic IBTC", "Kuda Bank", "Opay", "Moniepoint",
                     "Sterling Bank", "Wema Bank", "Fidelity Bank", "Union Bank"
                   ].sort().map(bank => (

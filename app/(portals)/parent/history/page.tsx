@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '../../../../lib/supabase'
+import { supabase } from '@/lib/supabase' // FIX: Used standard alias
 
 export default function PaymentHistory() {
   const [loading, setLoading] = useState(true)
@@ -13,20 +13,66 @@ export default function PaymentHistory() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        const { data, error } = await supabase
-          .from('transactions')
-          .select('*')
+        // Step 1: Fetch students for this parent
+        const { data: studentsData, error: studentError } = await supabase
+          .from('students')
+          .select('id, full_name, student_class')
           .eq('parent_id', user.id)
-          .order('created_at', { ascending: false }) 
 
-        if (error) throw error
-        if (data) setTransactions(data)
+        if (studentError) throw studentError
+        if (!studentsData || studentsData.length === 0) {
+          setTransactions([])
+          return
+        }
+
+        const studentIds = studentsData.map(s => s.id)
+
+        // Step 2: Fetch plans for these students
+        const { data: plansData, error: plansError } = await supabase
+          .from('active_plans')
+          .select('id, student_id')
+          .in('student_id', studentIds)
+
+        if (plansError) throw plansError
+        if (!plansData || plansData.length === 0) {
+          setTransactions([])
+          return
+        }
+
+        const planIds = plansData.map(p => p.id)
+
+        // Step 3: Fetch the ACTUAL payment history table
+        const { data: historyData, error: historyError } = await supabase
+          .from('payment_history')
+          .select('*')
+          .in('plan_id', planIds)
+          .order('payment_date', { ascending: false })
+
+        if (historyError) throw historyError
+
+        // Step 4: Map the student details back onto the transaction
+        const formattedTransactions = (historyData || []).map((tx: any) => {
+          const plan = plansData.find((p: any) => p.id === tx.plan_id)
+          const student = plan ? studentsData.find((s: any) => s.id === plan.student_id) : null
+
+          return {
+            ...tx,
+            student_name: student ? student.full_name : 'Unknown Student',
+            student_class: student ? student.student_class : 'N/A',
+            // Standardize the date field for your UI
+            created_at: tx.payment_date || tx.created_at || new Date().toISOString()
+          }
+        })
+
+        setTransactions(formattedTransactions)
+
       } catch (err: any) {
         console.error("Error fetching history:", err.message || JSON.stringify(err, null, 2))
       } finally {
         setLoading(false)
       }
     }
+
     fetchHistory()
   }, [])
 
@@ -42,7 +88,9 @@ export default function PaymentHistory() {
       hour: 'numeric', minute: '2-digit', hour12: true 
     })
     
-    const refNumber = `PT-${tx.id.substring(0, 8).toUpperCase()}`
+    // Fallback to ID if receipt_number is missing
+    const rawRef = tx.receipt_number || tx.id || '00000000'
+    const refNumber = `PT-${rawRef.substring(0, 8).toUpperCase()}`
 
     const studentDisplay = tx.student_class && tx.student_class !== 'N/A' 
       ? `${tx.student_name} (${tx.student_class})` 
@@ -83,7 +131,7 @@ export default function PaymentHistory() {
               <div class="row"><span class="label">Date & Time</span><span class="value">${dateFormatted}</span></div>
               <div class="row"><span class="label">Transaction Ref</span><span class="value">${refNumber}</span></div>
               <div class="row"><span class="label">Student</span><span class="value">${studentDisplay}</span></div>
-              <div class="row"><span class="label">Description</span><span class="value">${tx.description}</span></div>
+              <div class="row"><span class="label">Description</span><span class="value">${tx.description || 'School Fee Payment'}</span></div>
               <div class="row"><span class="label">Payment Method</span><span class="value">Virtual Account Transfer</span></div>
             </div>
 
@@ -108,11 +156,11 @@ export default function PaymentHistory() {
     <div className="w-full max-w-4xl mx-auto md:p-4 lg:p-8 animate-in fade-in pb-20">
       <div className="p-4 md:p-0 mb-4 flex flex-col md:flex-row md:justify-between md:items-end gap-3">
         <div>
-          <button onClick={() => window.location.href = '/parent'} className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 px-3 py-1.5 rounded-full shadow-sm mb-3 md:hidden">
+          <button onClick={() => window.location.href = '/parent'} className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 px-3 py-1.5 rounded-full shadow-sm mb-3 md:hidden active:scale-95 transition-transform">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
             Back
           </button>
-          <h1 className="text-2xl font-extrabold text-gray-900 mb-1 tracking-tight">Payment History</h1>
+          <h1 className="text-2xl font-extrabold text-[#0a1128] mb-1 tracking-tight">Payment History</h1>
           <p className="text-gray-500 text-sm">A record of your past school fee payments.</p>
         </div>
       </div>
@@ -129,17 +177,17 @@ export default function PaymentHistory() {
               <div key={tx.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
                 <div className="flex justify-between items-start mb-3">
                   <div className="min-w-0 pr-3">
-                    <h3 className="font-bold text-gray-900 text-sm truncate">{tx.student_name}</h3>
+                    <h3 className="font-bold text-[#0a1128] text-sm truncate">{tx.student_name}</h3>
                     <p className="text-xs text-gray-500 truncate">{tx.student_class || 'General Payment'}</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="font-black text-base text-gray-900">₦{Number(tx.amount).toLocaleString()}</p>
-                    <span className="inline-block mt-1 py-0.5 px-2 rounded-md bg-green-50 text-green-700 font-bold text-[9px] uppercase tracking-wider">Success</span>
+                    <p className="font-black text-base text-[#0a1128]">₦{Number(tx.amount).toLocaleString()}</p>
+                    <span className="inline-block mt-1 py-0.5 px-2 rounded-md bg-green-50 text-green-700 font-bold text-[9px] uppercase tracking-wider border border-green-100">Success</span>
                   </div>
                 </div>
                 <div className="flex justify-between items-center pt-3 border-t border-gray-50">
                   <span className="text-xs font-medium text-gray-400">{new Date(tx.created_at).toLocaleDateString()}</span>
-                  <button onClick={() => handleDownloadReceipt(tx)} className="text-blue-600 font-bold text-xs bg-blue-50 px-3 py-1.5 rounded-lg active:scale-95">
+                  <button onClick={() => handleDownloadReceipt(tx)} className="text-[#0a1128] font-bold text-xs bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-lg active:scale-95 transition-transform shadow-sm">
                     Receipt
                   </button>
                 </div>
@@ -162,15 +210,15 @@ export default function PaymentHistory() {
               <tbody className="divide-y divide-gray-100">
                 {transactions.map((tx) => (
                   <tr key={tx.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="p-4 text-gray-600 text-xs whitespace-nowrap">{new Date(tx.created_at).toLocaleDateString()}</td>
+                    <td className="p-4 text-gray-600 text-xs whitespace-nowrap font-medium">{new Date(tx.created_at).toLocaleDateString('en-GB')}</td>
                     <td className="p-4">
-                      <div className="font-bold text-gray-900 text-sm">{tx.student_name}</div>
-                      <div className="text-xs text-gray-500">{tx.student_class}</div>
+                      <div className="font-bold text-[#0a1128] text-sm">{tx.student_name}</div>
+                      <div className="text-xs text-gray-500 font-medium">{tx.student_class}</div>
                     </td>
-                    <td className="p-4"><span className="py-1 px-2.5 rounded-md bg-green-50 text-green-700 font-bold text-[10px] uppercase">Success</span></td>
-                    <td className="p-4 font-black text-gray-900 text-right text-base">₦{Number(tx.amount).toLocaleString()}</td>
+                    <td className="p-4"><span className="py-1.5 px-2.5 rounded text-[9px] font-bold uppercase tracking-wider border bg-green-50 text-green-700 border-green-200 inline-block">Success</span></td>
+                    <td className="p-4 font-black text-[#0a1128] font-mono text-right text-base">₦{Number(tx.amount).toLocaleString()}</td>
                     <td className="p-4 text-center">
-                      <button onClick={() => handleDownloadReceipt(tx)} className="bg-gray-100 text-gray-900 px-4 py-2 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors">
+                      <button onClick={() => handleDownloadReceipt(tx)} className="bg-white border border-gray-200 text-[#0a1128] px-4 py-2 rounded-lg text-xs font-bold hover:bg-gray-50 transition-colors shadow-sm active:scale-95">
                         Download
                       </button>
                     </td>
