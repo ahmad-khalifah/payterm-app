@@ -1,4 +1,3 @@
-'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -16,7 +15,7 @@ export default function AddStudentPage() {
 
   const [form, setForm] = useState({
     fullName: '',
-    state: '', // NEW: Added State to form tracking
+    state: '', 
     schoolName: '',
     session: '',
     term: '',
@@ -29,7 +28,7 @@ export default function AddStudentPage() {
       try {
         const { data, error } = await supabase
           .from('partner_schools')
-          .select('id, name, state') // NEW: Fetch state column
+          .select('id, name, state') 
           .eq('status', 'Active')
           .order('name', { ascending: true })
 
@@ -105,6 +104,7 @@ export default function AddStudentPage() {
 
       if (studentError) throw studentError
 
+      
       // 2. Generate the 60/40 Financial Plan
       const uniqueCode = `PT-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
       
@@ -120,8 +120,10 @@ export default function AddStudentPage() {
           status: 'Pending Verification',
           clearance_code: uniqueCode,
           mid_term_cleared: false, 
-          payterm_advance: 0
-        })
+          payterm_advance: 0,
+          academic_session: form.session, 
+          term: form.term                 
+        } as any) 
 
       if (planError) throw planError
 
@@ -137,7 +139,6 @@ export default function AddStudentPage() {
 
   const activeClassData = availableClasses.find(c => c.class_name === form.className)
 
-  // NEW: Compute unique available states and filter schools dynamically
   const availableStates = Array.from(new Set(schools.map(s => s.state).filter(Boolean))).sort()
   const filteredSchools = form.state ? schools.filter(s => s.state === form.state) : []
 
@@ -177,7 +178,7 @@ export default function AddStudentPage() {
             </h2>
             <div className="space-y-4">
               
-              {/* NEW: State Selection */}
+              {/* State Selection */}
               <div>
                 <div className="flex justify-between items-center mb-1.5">
                   <label className="block text-xs font-medium text-gray-700">School Location (State)</label>
@@ -191,7 +192,7 @@ export default function AddStudentPage() {
                 </select>
               </div>
 
-              {/* UPDATED: Filtered School Selection */}
+              {/* Filtered School Selection */}
               <div className={`transition-all duration-300 ${!form.state ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">Select School</label>
                 <select required value={form.schoolName} onChange={e => setForm({...form, schoolName: e.target.value, session: '', term: '', className: ''})} disabled={!form.state}

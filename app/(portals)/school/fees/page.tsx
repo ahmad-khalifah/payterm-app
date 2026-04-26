@@ -14,13 +14,11 @@ export default function FeeSetupPage() {
   const [isLoadingTable, setIsLoadingTable] = useState(true)
   
   // DYNAMIC SESSION & TERM DATA
-  const sessionList = ["2024/2025", "2025/2026", "2026/2027", "2027/2028"]
+  const sessionList = ["2025/2026", "2026/2027", "2027/2028"]
   const termList = ["First Term", "Second Term", "Third Term"]
   
   const classList = [
-    "Creche", "Pre-Nursery", "Nursery 1", "Nursery 2",
-    "Kindergarten 1", "Kindergarten 2",
-    "Basic 1", "Basic 2", "Basic 3", "Basic 4", "Basic 5", "Basic 6",
+    "Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6",
     "JSS 1", "JSS 2", "JSS 3", "SS 1", "SS 2", "SS 3"
   ]
 
