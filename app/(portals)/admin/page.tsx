@@ -66,7 +66,7 @@ export default function AdminDashboard() {
           
           if (isVerified) {
             if (progress >= 0.59 && progress < 0.99) {
-              deployed += (baseTuition * 0.80)
+              deployed += (baseTuition * 0.70)
               recoverable += (totalInvoice - amountPaid) 
             } else if (progress >= 0.99) {
               deployed += baseTuition 

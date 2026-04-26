@@ -53,7 +53,7 @@ export default function AdminSchoolsPage() {
           const isEscrow = plan.status === 'Pending Verification' || plan.status === 'Pending Escrow'
           if (isEscrow && Number(plan.amount_paid) > 0) {
             const baseTuition = Number(plan.total_fee) / 1.05
-            const schoolTranche = baseTuition * 0.80
+            const schoolTranche = baseTuition * 0.70
             schoolEscrow += schoolTranche
             globalEscrow += schoolTranche
           }
