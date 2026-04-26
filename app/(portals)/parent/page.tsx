@@ -6,6 +6,24 @@ import Link from 'next/link'
 import { supabase } from '../../../lib/supabase'
 import DummyPaystack from './components/DummyPaystack'
 
+// --- AUTO-CALCULATION ENGINE ---
+const calculateNextTerm = (currentSession: string, currentTerm: string) => {
+  if (!currentSession || !currentTerm) return { nextSession: '', nextTerm: '' } // Fallback for old test data
+
+  if (currentTerm === 'First Term') return { nextSession: currentSession, nextTerm: 'Second Term' }
+  if (currentTerm === 'Second Term') return { nextSession: currentSession, nextTerm: 'Third Term' }
+  
+  if (currentTerm === 'Third Term') {
+    const years = currentSession.split('/')
+    if (years.length === 2) {
+      const nextYear1 = parseInt(years[0]) + 1
+      const nextYear2 = parseInt(years[1]) + 1
+      return { nextSession: `${nextYear1}/${nextYear2}`, nextTerm: 'First Term' }
+    }
+  }
+  return { nextSession: currentSession, nextTerm: 'First Term' }
+}
+
 export default function ParentDashboard() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -22,12 +40,9 @@ export default function ParentDashboard() {
     studentClass: string; planId: string; studentId: string; isMidTerm: boolean;
   } | null>(null)
 
-  // Renewal State (FIXED: Added schoolName for the query)
+  // Renewal State
   const [renewConfig, setRenewConfig] = useState<{ 
-    studentId: string, 
-    schoolId: string, 
-    schoolName: string, 
-    currentClass: string 
+    studentId: string, schoolId: string, schoolName: string, currentClass: string 
   } | null>(null)
   
   const [renewForm, setRenewForm] = useState({ session: '', term: '', className: '' })
@@ -35,7 +50,6 @@ export default function ParentDashboard() {
 
   const classList = ["JSS 1", "JSS 2", "JSS 3", "SS 1", "SS 2", "SS 3", "Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6"]
 
-  // Unified, Safe Two-Step Fetch
   const fetchDashboardData = useCallback(async () => {
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
@@ -50,13 +64,14 @@ export default function ParentDashboard() {
       const { data: parentProfile } = await supabase.from('parents').select('full_name').eq('id', userId).single()
       if (parentProfile) setParentName(parentProfile.full_name)
 
-      // Fetch students with ALL their plans (added created_at to sort them safely)
+      // FIX: Added academic_session and term to the select query
       const { data: students, error: studentError } = await supabase
         .from('students')
         .select(`
           id, full_name, school_id, student_class, enrollment_status,
           active_plans ( 
             id, total_fee, amount_paid, next_payment_date, status, clearance_code, created_at,
+            academic_session, term,
             payment_history ( id, amount, receipt_number, payment_date, status )
           )
         `)
@@ -71,12 +86,9 @@ export default function ParentDashboard() {
 
         const finalStudentsData = students.map((child: any) => {
           const foundSchool = schoolsData?.find((sch: any) => sch.id === child.school_id)
-          
-          // Sort plans so the newest one is always at index 0
           if (child.active_plans) {
             child.active_plans.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
           }
-
           return {
             ...child,
             display_school_name: foundSchool ? foundSchool.name : child.school_id
@@ -118,7 +130,6 @@ export default function ParentDashboard() {
         await supabase.from('active_plans').update({ mid_term_cleared: true }).eq('id', paystackConfig.planId)
       }
       
-      // NEW: Generate the Notification!
       await supabase.from('notifications').insert({
         parent_id: currentUserId,
         title: 'Payment Successful',
@@ -133,14 +144,12 @@ export default function ParentDashboard() {
     }
   }
 
-  // Engine for renewing a term and generating a new active_plans row
   const handleRenewTerm = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!renewConfig || !currentUserId) return
     setIsRenewing(true)
 
     try {
-      // 1. FIX: Changed to 'school_name' to match your strict Typescript DB schema
       const { data: feeConfig, error: feeError } = await supabase
         .from('class_fees')
         .select('parent_total_fee, mid_term_date')
@@ -150,37 +159,35 @@ export default function ParentDashboard() {
         .eq('term', renewForm.term)
         .single()
 
-      if (feeError || !feeConfig) throw new Error("School has not added the fee structure for this term yet. Contact the school.")
+      if (feeError || !feeConfig) throw new Error(`School has not added fees for ${renewForm.term} ${renewForm.session} yet. Contact them.`)
 
-      // 2. Archive the old plan so it steps out of the way
       await supabase
         .from('active_plans')
         .update({ status: 'Completed' })
         .eq('student_id', renewConfig.studentId)
         .neq('status', 'Completed')
 
-      // 3. Update the student's class if they got promoted
       if (renewForm.className !== renewConfig.currentClass) {
         await supabase.from('students').update({ student_class: renewForm.className }).eq('id', renewConfig.studentId)
       }
 
-      // 4. Generate the new plan
       const uniqueCode = `PT-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
       
-      // FIX: Added 'as any' bypass because your local Typescript file is missing 'student_id'
       const { error: newPlanError } = await supabase
         .from('active_plans')
         .insert({
           student_id: renewConfig.studentId,
           parent_id: currentUserId,
           school_id: renewConfig.schoolId,
-          total_fee: Number(feeConfig.parent_total_fee) || 0, // FIX: Strict number conversion
+          total_fee: Number(feeConfig.parent_total_fee) || 0,
           amount_paid: 0,
           next_payment_date: feeConfig.mid_term_date || null,
           status: 'Pending Verification',
           clearance_code: uniqueCode,
           mid_term_cleared: false,
-          payterm_advance: 0
+          payterm_advance: 0,
+          academic_session: renewForm.session, // FIX: Save new session to DB
+          term: renewForm.term                 // FIX: Save new term to DB
         } as any)
 
       if (newPlanError) throw newPlanError
@@ -214,7 +221,7 @@ export default function ParentDashboard() {
         />
       )}
 
-      {/* RENEWAL MODAL */}
+      {/* SMART RENEWAL MODAL */}
       {renewConfig && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a1128]/80 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 mx-auto p-6">
@@ -222,22 +229,22 @@ export default function ParentDashboard() {
             <p className="text-sm text-gray-500 mb-6">Enroll your child for the upcoming academic period.</p>
             
             <form onSubmit={handleRenewTerm} className="space-y-4">
+              
               <div className="flex gap-4">
                 <div className="flex-1">
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Session</label>
-                  <select required value={renewForm.session} onChange={e => setRenewForm({...renewForm, session: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-600">
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Next Session</label>
+                  {/* FIX: Locked Dropdown so they can't make mistakes */}
+                  <select disabled required value={renewForm.session} className="w-full bg-gray-100 border border-gray-200 p-3 rounded-xl text-sm font-bold text-gray-600 outline-none opacity-80 cursor-not-allowed appearance-none">
                     <option value="" disabled>Select Year</option>
-                    <option value="2024/2025">2024/2025</option>
-                    <option value="2025/2026">2025/2026</option>
+                    <option value={renewForm.session}>{renewForm.session}</option>
                   </select>
                 </div>
                 <div className="flex-1">
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Term</label>
-                  <select required value={renewForm.term} onChange={e => setRenewForm({...renewForm, term: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-600">
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Next Term</label>
+                  {/* FIX: Locked Dropdown */}
+                  <select disabled required value={renewForm.term} className="w-full bg-gray-100 border border-gray-200 p-3 rounded-xl text-sm font-bold text-gray-600 outline-none opacity-80 cursor-not-allowed appearance-none">
                     <option value="" disabled>Select Term</option>
-                    <option value="First Term">First Term</option>
-                    <option value="Second Term">Second Term</option>
-                    <option value="Third Term">Third Term</option>
+                    <option value={renewForm.term}>{renewForm.term}</option>
                   </select>
                 </div>
               </div>
@@ -248,11 +255,12 @@ export default function ParentDashboard() {
                   <option value="" disabled>Select Class</option>
                   {classList.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
+                <p className="text-[10px] text-gray-400 mt-1.5">* Change this only if your child has been promoted.</p>
               </div>
 
               <div className="flex gap-3 pt-4 border-t border-gray-100">
                 <button type="button" onClick={() => setRenewConfig(null)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={isRenewing} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 disabled:opacity-50 flex justify-center items-center">
+                <button type="submit" disabled={isRenewing || !renewForm.session || !renewForm.term} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 disabled:opacity-50 flex justify-center items-center active:scale-95 transition-transform">
                   {isRenewing ? 'Enrolling...' : 'Confirm Enrollment'}
                 </button>
               </div>
@@ -329,7 +337,6 @@ export default function ParentDashboard() {
           </div>
         ) : (
           childrenData.map((child) => {
-            // Because we sorted the query, index 0 is always the most recent plan
             const plan = child.active_plans?.[0] 
             const isPending = child.enrollment_status === 'Pending Verification'
             const isEscrowFunded = isPending && plan && plan.amount_paid > 0
@@ -341,16 +348,13 @@ export default function ParentDashboard() {
               ? Math.min(100, Math.round((Number(plan.amount_paid) / Number(plan.total_fee)) * 100)) 
               : 0
 
-            // AGGREGATE ALL RECEIPTS: Map over every single plan (past and present) to gather the full history
             const allHistory = child.active_plans?.flatMap((p: any) => p.payment_history || []) || []
             const sortedHistory = allHistory.sort((a: any, b: any) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime())
-            
             const isHistoryExpanded = expandedHistoryId === child.id
 
             return (
               <div key={child.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 md:p-6 flex flex-col transition-all">
                 
-                {/* Top Row: Name & Status Badge */}
                 <div className="flex justify-between items-start mb-1">
                   <h3 className="text-lg font-bold text-[#0a1128] tracking-tight truncate pr-4">{child.full_name}</h3>
                   <div className="shrink-0">
@@ -364,12 +368,11 @@ export default function ParentDashboard() {
                   </div>
                 </div>
 
-                {/* Subtitle */}
                 <p className="text-xs text-gray-500 truncate mb-6">
-                  {child.student_class ? `${child.student_class} • ` : ''} {child.display_school_name}
+                  {child.student_class ? `${child.student_class} • ` : ''} {child.display_school_name} 
+                  {plan?.academic_session && <span className="font-bold ml-1 text-gray-400">({plan.term} {plan.academic_session})</span>}
                 </p>
 
-                {/* Financials & Progress */}
                 {plan && (
                   <div className="mt-auto">
                     <div className="flex justify-between text-[11px] font-bold mb-2">
@@ -381,7 +384,6 @@ export default function ParentDashboard() {
                       <div className="h-full bg-blue-600 rounded-full transition-all duration-500 ease-out" style={{ width: `${progressPercentage}%` }}></div>
                     </div>
 
-                    {/* DYNAMIC ACTION BLOCK */}
                     {isFullyPaid ? (
                       <div className="flex gap-2">
                         <div className="flex-1 bg-green-50 text-green-700 py-2.5 rounded-xl text-sm font-bold text-center border border-green-100 flex items-center justify-center">
@@ -389,12 +391,12 @@ export default function ParentDashboard() {
                         </div>
                         <button 
                           onClick={() => {
-                            setRenewForm({ session: '', term: '', className: child.student_class })
+                            // SMART CALCULATION TRIGGERS HERE
+                            const { nextSession, nextTerm } = calculateNextTerm(plan.academic_session, plan.term)
+                            
+                            setRenewForm({ session: nextSession, term: nextTerm, className: child.student_class })
                             setRenewConfig({ 
-                              studentId: child.id, 
-                              schoolId: child.school_id, 
-                              schoolName: child.display_school_name, // FIX: Pass the school name explicitly 
-                              currentClass: child.student_class 
+                              studentId: child.id, schoolId: child.school_id, schoolName: child.display_school_name, currentClass: child.student_class 
                             })
                           }}
                           className="flex-1 bg-[#0a1128] text-white py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-600 transition-colors active:scale-[0.98]"
@@ -415,7 +417,6 @@ export default function ParentDashboard() {
                       </button>
                     )}
 
-                    {/* UNIFIED HISTORY TOGGLE */}
                     {sortedHistory && sortedHistory.length > 0 && (
                       <div className="pt-3 border-t border-gray-100 mt-4">
                         <button onClick={() => toggleHistory(child.id)} className="w-full flex items-center justify-between text-xs font-bold text-gray-500 hover:text-gray-900 transition-colors">
