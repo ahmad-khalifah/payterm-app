@@ -8,7 +8,7 @@ import DummyPaystack from './components/DummyPaystack'
 
 // --- AUTO-CALCULATION ENGINE ---
 const calculateNextTerm = (currentSession: string, currentTerm: string) => {
-  if (!currentSession || !currentTerm) return { nextSession: '', nextTerm: '' } // Fallback for old test data
+  if (!currentSession || !currentTerm) return { nextSession: '', nextTerm: '' }
 
   if (currentTerm === 'First Term') return { nextSession: currentSession, nextTerm: 'Second Term' }
   if (currentTerm === 'Second Term') return { nextSession: currentSession, nextTerm: 'Third Term' }
@@ -64,7 +64,6 @@ export default function ParentDashboard() {
       const { data: parentProfile } = await supabase.from('parents').select('full_name').eq('id', userId).single()
       if (parentProfile) setParentName(parentProfile.full_name)
 
-      // FIX: Added academic_session and term to the select query
       const { data: students, error: studentError } = await supabase
         .from('students')
         .select(`
@@ -186,8 +185,8 @@ export default function ParentDashboard() {
           clearance_code: uniqueCode,
           mid_term_cleared: false,
           payterm_advance: 0,
-          academic_session: renewForm.session, // FIX: Save new session to DB
-          term: renewForm.term                 // FIX: Save new term to DB
+          academic_session: renewForm.session,
+          term: renewForm.term
         } as any)
 
       if (newPlanError) throw newPlanError
@@ -233,7 +232,6 @@ export default function ParentDashboard() {
               <div className="flex gap-4">
                 <div className="flex-1">
                   <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Next Session</label>
-                  {/* FIX: Locked Dropdown so they can't make mistakes */}
                   <select disabled required value={renewForm.session} className="w-full bg-gray-100 border border-gray-200 p-3 rounded-xl text-sm font-bold text-gray-600 outline-none opacity-80 cursor-not-allowed appearance-none">
                     <option value="" disabled>Select Year</option>
                     <option value={renewForm.session}>{renewForm.session}</option>
@@ -241,7 +239,6 @@ export default function ParentDashboard() {
                 </div>
                 <div className="flex-1">
                   <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Next Term</label>
-                  {/* FIX: Locked Dropdown */}
                   <select disabled required value={renewForm.term} className="w-full bg-gray-100 border border-gray-200 p-3 rounded-xl text-sm font-bold text-gray-600 outline-none opacity-80 cursor-not-allowed appearance-none">
                     <option value="" disabled>Select Term</option>
                     <option value={renewForm.term}>{renewForm.term}</option>
@@ -368,10 +365,27 @@ export default function ParentDashboard() {
                   </div>
                 </div>
 
-                <p className="text-xs text-gray-500 truncate mb-6">
-                  {child.student_class ? `${child.student_class} • ` : ''} {child.display_school_name} 
-                  {plan?.academic_session && <span className="font-bold ml-1 text-gray-400">({plan.term} {plan.academic_session})</span>}
-                </p>
+                {/* UPDATED: Subtitle & Prominent Term Badge */}
+                <div className="mb-6">
+                  <p className="text-xs text-gray-500 truncate">
+                    {child.student_class ? `${child.student_class} • ` : ''} {child.display_school_name}
+                  </p>
+                  
+                  {plan?.academic_session ? (
+                    <div className="mt-2 inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-md">
+                      <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">
+                        {plan.term} • {plan.academic_session}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="mt-2 inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-md opacity-50">
+                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Legacy Plan</span>
+                    </div>
+                  )}
+                </div>
 
                 {plan && (
                   <div className="mt-auto">
