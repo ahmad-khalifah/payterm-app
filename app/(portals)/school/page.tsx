@@ -27,21 +27,21 @@ export default function SchoolDashboard() {
   })
 
   const [recentPayments, setRecentPayments] = useState<any[]>([])
+  
+  // NEW: Filter state for the ledger
+  const [classFilter, setClassFilter] = useState<string>('All')
 
   const fetchDashboardData = async (idToFetch: string, isMounted: boolean = true) => {
     try {
-      // 1. Fetch the School's Tier to determine payout logic dynamically
       const { data: schoolData } = await supabase
         .from('partner_schools')
         .select('*')
         .eq('id', idToFetch)
         .maybeSingle()
 
-      // Set the dynamic math variables
       const payoutRate = (schoolData as any)?.tier === 'Tier 2' ? 0.70 : 0.60
       const remainderRate = (schoolData as any)?.tier === 'Tier 2' ? 0.30 : 0.40
 
-      // 2. Fetch the Students and Plans
       const { data: studentData, error } = await supabase
         .from('students')
         .select(`
@@ -63,22 +63,19 @@ export default function SchoolDashboard() {
           const plan = student.active_plans[0]
           if (!plan) return
 
-          // NEW PRICING ENGINE CALCULATION
           const { base: baseTuition } = getFeeBreakdown(Number(plan.total_fee))
           const amountPaid = Number(plan.amount_paid)
+          const totalInvoice = Number(plan.total_fee)
           
-          // Dynamic Tier Math Calculations
           if (student.enrollment_status === 'Verified') {
             activeCount++
             financed += baseTuition
             
-            const progress = amountPaid / Number(plan.total_fee)
-            // Using 0.59 to prevent floating point decimal bugs
+            const progress = amountPaid / totalInvoice
             if (progress >= 0.59) cleared += (baseTuition * payoutRate)
             if (progress >= 0.99) cleared += (baseTuition * remainderRate)
           } 
           else if (student.enrollment_status === 'Pending Verification' && amountPaid > 0) {
-            // Money is held in Escrow based on their tier until the school verifies the student
             pendingPayment += (baseTuition * payoutRate)
           }
 
@@ -87,9 +84,10 @@ export default function SchoolDashboard() {
               id: student.id,
               studentName: student.full_name,
               className: student.student_class,
+              baseTuition: baseTuition,
+              totalInvoice: totalInvoice,
               amountPaid: amountPaid,
-              baseTuition: baseTuition, // <--- ADDED FIX HERE
-              totalInvoice: Number(plan.total_fee),
+              outstanding: Math.max(0, totalInvoice - amountPaid), // NEW: Calculated outstanding
               status: student.enrollment_status,
               schoolCut: (baseTuition * payoutRate)
             })
@@ -118,11 +116,9 @@ export default function SchoolDashboard() {
 
     const initializeDashboard = async () => {
       try {
-       // 1. Fast Check: Reads local storage (Handles page refreshes perfectly)
        const { data: { session } } = await supabase.auth.getSession()
        let activeUserId = session?.user?.id
 
-       // 2. Secure Safety Net: If local storage lags (Tab-switching), ping the server
        if (!activeUserId) {
          const { data: { user }, error: userError } = await supabase.auth.getUser()
          if (userError || !user) {
@@ -142,7 +138,6 @@ export default function SchoolDashboard() {
 
         if (profileError) throw profileError
         
-        // NEW: If no school profile exists for this user, boot them to login!
         if (!schoolProfile) {
           router.push('/school-login')
           return
@@ -152,12 +147,10 @@ export default function SchoolDashboard() {
           setTargetSchool(schoolProfile.name)
         }
 
-        await fetchDashboardData(activeUserId, isMounted) // FIXED: Replaced user.id with activeUserId
+        await fetchDashboardData(activeUserId, isMounted)
 
       } catch (err: any) {
-        const errorMessage = err.message || JSON.stringify(err, null, 2) || "Unknown Error"
-        console.error("🔥 EXPOSED ERROR:", errorMessage)
-        alert(`Dashboard Failed to Load: \n${errorMessage}`)
+        console.error("🔥 EXPOSED ERROR:", err.message)
       }
     }
 
@@ -190,9 +183,15 @@ export default function SchoolDashboard() {
 
   if (loading || !targetSchool) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest h-full flex items-center justify-center animate-pulse">Loading dashboard...</div>
 
+  // Generate unique classes for the filter dropdown
+  const uniqueClasses = Array.from(new Set(recentPayments.map(tx => tx.className).filter(Boolean))).sort()
+  const filteredPayments = classFilter === 'All' ? recentPayments : recentPayments.filter(tx => tx.className === classFilter)
+
   return (
     <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in pb-20">
-      <div className="mb-6 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
+      
+      {/* Hide Header on Print */}
+      <div className="mb-6 flex flex-col md:flex-row md:justify-between md:items-end gap-4 print:hidden">
         <div>
           <h1 className="text-2xl font-extrabold text-[#0a1128] tracking-tight mb-1">School Dashboard</h1>
           <p className="text-gray-500 text-sm">Financial overview and collections for <strong>{targetSchool}</strong>.</p>
@@ -202,8 +201,8 @@ export default function SchoolDashboard() {
         </Link>
       </div>
   
-      {/* METRIC CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* Hide Metrics on Print */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 print:hidden">
         <div className="bg-blue-600 p-5 rounded-2xl border border-blue-700 shadow-md relative overflow-hidden">
           <div className="absolute top-0 right-0 -mr-8 -mt-8 w-24 h-24 bg-white opacity-10 rounded-full blur-xl pointer-events-none"></div>
           <div className="relative z-10">
@@ -235,55 +234,81 @@ export default function SchoolDashboard() {
       </div>
   
       {/* PAYMENT LEDGER TABLE */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="bg-gray-50/50 p-4 sm:p-5 border-b border-gray-200">
-          <h2 className="text-base font-bold text-[#0a1128]">Parent Payment Ledger</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Real-time transparency on funds remitted to PayTerm Escrow.</p>
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden print:border-none print:shadow-none">
+        
+        {/* Ledger Header with Filters & Print Button */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-50/50 p-4 sm:p-5 border-b border-gray-200 print:bg-white print:border-b-2 print:border-gray-900 print:mb-4">
+          <div>
+            <h2 className="text-base font-bold text-[#0a1128] print:text-xl">{targetSchool} - Payment Ledger</h2>
+            <p className="text-xs text-gray-500 mt-0.5 print:hidden">Real-time transparency on funds remitted to PayTerm Escrow.</p>
+            {/* Print-only context */}
+            <p className="hidden print:block text-xs text-gray-500 mt-1">Generated on: {new Date().toLocaleDateString()}</p>
+          </div>
+          
+          <div className="flex w-full sm:w-auto items-center gap-3 print:hidden">
+            <select 
+              value={classFilter} 
+              onChange={(e) => setClassFilter(e.target.value)}
+              className="flex-1 sm:w-auto bg-white border border-gray-300 text-sm rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-600 font-medium text-gray-700 shadow-sm"
+            >
+              <option value="All">All Classes</option>
+              {uniqueClasses.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            
+            <button 
+              onClick={() => window.print()}
+              className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-gray-50 transition-colors flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+              Print
+            </button>
+          </div>
         </div>
         
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
-              <tr className="border-b border-gray-200 text-[10px] text-gray-500 uppercase tracking-wider bg-gray-50/20">
+              <tr className="border-b border-gray-200 text-[10px] text-gray-500 uppercase tracking-wider bg-gray-50/20 print:bg-gray-100 print:text-black">
                 <th className="p-4 font-bold">Student</th>
-                {/* FIX: Changed from Total Parent Invoice to Base School Tuition */}
                 <th className="p-4 font-bold">Base School Tuition</th>
-                <th className="p-4 font-bold text-blue-700">Amount Paid (Escrow)</th>
-                <th className="p-4 font-bold text-green-700">Your Cleared Tranche</th>
-                <th className="p-4 font-bold text-right">Status</th>
+                <th className="p-4 font-bold text-red-600 print:text-black">Outstanding</th>
+                <th className="p-4 font-bold text-green-700 print:text-black">Amount Paid</th>
+                <th className="p-4 font-bold text-right print:text-left">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {recentPayments.length === 0 ? (
+            <tbody className="divide-y divide-gray-100 print:divide-gray-300">
+              {filteredPayments.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="p-8 text-center text-sm text-gray-500 font-medium">
-                    No parent payments detected yet.
+                    No parent payments found for {classFilter === 'All' ? 'this school' : `class ${classFilter}`}.
                   </td>
                 </tr>
               ) : (
-                recentPayments.map((tx, index) => (
-                  <tr key={index} className={`hover:bg-gray-50 transition-colors ${tx.status === 'Pending Verification' ? 'bg-orange-50/30' : ''}`}>
+                filteredPayments.map((tx, index) => (
+                  <tr key={index} className={`hover:bg-gray-50 transition-colors ${tx.status === 'Pending Verification' ? 'bg-orange-50/30 print:bg-transparent' : ''}`}>
                     <td className="p-4">
-                      <p className="font-bold text-[#0a1128] text-sm">{tx.studentName}</p>
-                      <p className="text-[10px] text-gray-500 font-medium mt-0.5">{tx.className}</p>
+                      <p className="font-bold text-[#0a1128] text-sm print:text-black">{tx.studentName}</p>
+                      <p className="text-[10px] text-gray-500 font-medium mt-0.5 print:text-gray-700">{tx.className}</p>
                     </td>
-                    {/* FIX: Displaying baseTuition instead of totalInvoice */}
-                    <td className="p-4 text-xs font-medium text-gray-500 font-mono">
+                    <td className="p-4 text-xs font-medium text-gray-500 font-mono print:text-black">
                       ₦{tx.baseTuition.toLocaleString()}
                     </td>
                     <td className="p-4">
-                      <span className="text-xs font-bold text-blue-600 font-mono">
-                        ₦{tx.amountPaid.toLocaleString()}
+                      <span className={`text-xs font-bold font-mono ${tx.outstanding > 0 ? 'text-red-600' : 'text-gray-400'} print:text-black`}>
+                        ₦{tx.outstanding.toLocaleString()}
                       </span>
                     </td>
                     <td className="p-4">
-                      <span className={`text-xs font-bold font-mono ${tx.status === 'Verified' ? 'text-green-600' : 'text-gray-400'}`}>
-                        ₦{tx.schoolCut.toLocaleString()}
+                      <span className="text-xs font-bold text-green-600 font-mono print:text-black">
+                        ₦{tx.amountPaid.toLocaleString()}
                       </span>
                     </td>
-                    <td className="p-4 text-right">
+                    <td className="p-4 text-right print:text-left">
                       <span className={`px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider border inline-block ${
-                        tx.status === 'Verified' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-orange-50 text-orange-700 border-orange-200'
+                        tx.status === 'Verified' ? 'bg-green-50 text-green-700 border-green-200 print:border-none print:p-0 print:bg-transparent print:text-black' 
+                        : 'bg-orange-50 text-orange-700 border-orange-200 print:border-none print:p-0 print:bg-transparent print:text-black'
                       }`}>
                         {tx.status === 'Verified' ? 'Cleared' : 'Awaiting Claim'}
                       </span>
