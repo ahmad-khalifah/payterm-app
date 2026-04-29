@@ -91,7 +91,7 @@ export default function AddStudentPage() {
       const selectedSchool = schools.find(s => s.name === form.schoolName && s.state === form.state)
       if (!selectedSchool || !selectedSchool.id) throw new Error("Could not verify the internal School ID.")
 
-      // 1. Insert the Student Profile
+      // 1. Insert the Student Profile (Instantly Active)
       const { data: studentData, error: studentError } = await supabase
         .from('students')
         .insert({
@@ -99,7 +99,7 @@ export default function AddStudentPage() {
           school_id: selectedSchool.id,
           full_name: form.fullName,
           student_class: form.className,
-          enrollment_status: 'Pending Verification'
+          enrollment_status: 'Active' 
         })
         .select()
         .single()
@@ -107,7 +107,7 @@ export default function AddStudentPage() {
       if (studentError) throw studentError
 
       
-      // 2. Generate the Financial Plan
+      // 2. Generate the Financial Plan (Instantly Active)
       const uniqueCode = `PT-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
       
       const { error: planError } = await supabase
@@ -116,10 +116,10 @@ export default function AddStudentPage() {
           student_id: studentData.id,
           parent_id: user.id,
           school_id: selectedSchool.id,
-          total_fee: selectedFeeConfig.parent_total_fee, // We insert Gross total here, the dashboard calculates the breakdown
+          total_fee: selectedFeeConfig.parent_total_fee,
           amount_paid: 0,
           next_payment_date: selectedFeeConfig.mid_term_date || null,
-          status: 'Pending Verification',
+          status: 'Active', 
           clearance_code: uniqueCode,
           mid_term_cleared: false, 
           payterm_advance: 0,
@@ -129,7 +129,7 @@ export default function AddStudentPage() {
 
       if (planError) throw planError
 
-      alert("Student profile generated! Redirecting to your dashboard to fund the 60% Escrow downpayment.")
+      alert("Student profile generated! Redirecting to your dashboard to fund the 60% Account downpayment.")
       router.push('/parent') 
 
     } catch (err: any) {
@@ -250,7 +250,6 @@ export default function AddStudentPage() {
                   </select>
                 </div>
   
-                {/* NEW COMPONENT REPLACES THE OLD HARDCODED BOX */}
                 <PaymentPreviewBox activeClassData={activeClassData} />
                 
               </div>

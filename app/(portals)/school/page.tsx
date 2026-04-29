@@ -22,13 +22,10 @@ export default function SchoolDashboard() {
   const [metrics, setMetrics] = useState({
     activeStudents: 0,
     totalFinanced: 0,
-    payoutsCleared: 0,
-    paymentWaiting: 0, 
+    payoutsCleared: 0
   })
 
   const [recentPayments, setRecentPayments] = useState<any[]>([])
-  
-  // NEW: Filter state for the ledger
   const [classFilter, setClassFilter] = useState<string>('All')
 
   const fetchDashboardData = async (idToFetch: string, isMounted: boolean = true) => {
@@ -45,7 +42,7 @@ export default function SchoolDashboard() {
       const { data: studentData, error } = await supabase
         .from('students')
         .select(`
-          id, full_name, enrollment_status, student_class,
+          id, full_name, student_class,
           active_plans ( total_fee, amount_paid )
         `)
         .eq('school_id', idToFetch)
@@ -54,7 +51,6 @@ export default function SchoolDashboard() {
 
       let financed = 0
       let cleared = 0
-      let pendingPayment = 0
       let activeCount = 0
       let ledger: any[] = [] 
 
@@ -67,19 +63,14 @@ export default function SchoolDashboard() {
           const amountPaid = Number(plan.amount_paid)
           const totalInvoice = Number(plan.total_fee)
           
-          if (student.enrollment_status === 'Verified') {
-            activeCount++
-            financed += baseTuition
-            
+          activeCount++
+          financed += baseTuition
+          
+          if (amountPaid > 0) {
             const progress = amountPaid / totalInvoice
             if (progress >= 0.59) cleared += (baseTuition * payoutRate)
             if (progress >= 0.99) cleared += (baseTuition * remainderRate)
-          } 
-          else if (student.enrollment_status === 'Pending Verification' && amountPaid > 0) {
-            pendingPayment += (baseTuition * payoutRate)
-          }
 
-          if (amountPaid > 0) {
             ledger.push({
               id: student.id,
               studentName: student.full_name,
@@ -87,9 +78,7 @@ export default function SchoolDashboard() {
               baseTuition: baseTuition,
               totalInvoice: totalInvoice,
               amountPaid: amountPaid,
-              outstanding: Math.max(0, totalInvoice - amountPaid), // NEW: Calculated outstanding
-              status: student.enrollment_status,
-              schoolCut: (baseTuition * payoutRate)
+              outstanding: Math.max(0, totalInvoice - amountPaid)
             })
           }
         })
@@ -98,8 +87,7 @@ export default function SchoolDashboard() {
           setMetrics({
             activeStudents: activeCount,
             totalFinanced: financed,
-            payoutsCleared: cleared,
-            paymentWaiting: pendingPayment
+            payoutsCleared: cleared
           })
           setRecentPayments(ledger)
         }
@@ -183,7 +171,6 @@ export default function SchoolDashboard() {
 
   if (loading || !targetSchool) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest h-full flex items-center justify-center animate-pulse">Loading dashboard...</div>
 
-  // Generate unique classes for the filter dropdown
   const uniqueClasses = Array.from(new Set(recentPayments.map(tx => tx.className).filter(Boolean))).sort()
   const filteredPayments = classFilter === 'All' ? recentPayments : recentPayments.filter(tx => tx.className === classFilter)
 
@@ -201,22 +188,7 @@ export default function SchoolDashboard() {
         </Link>
       </div>
   
-      {/* Hide Metrics on Print */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 print:hidden">
-        <div className="bg-blue-600 p-5 rounded-2xl border border-blue-700 shadow-md relative overflow-hidden">
-          <div className="absolute top-0 right-0 -mr-8 -mt-8 w-24 h-24 bg-white opacity-10 rounded-full blur-xl pointer-events-none"></div>
-          <div className="relative z-10">
-            <p className="text-[10px] font-bold text-blue-200 uppercase tracking-wide mb-1.5 flex items-center gap-2">
-              <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span></span>
-              Unclaimed Payment
-            </p>
-            <p className="text-2xl font-black text-white truncate mb-2">₦{metrics.paymentWaiting.toLocaleString()}</p>
-            <Link href="/school/students" className="text-[10px] text-white font-bold uppercase tracking-wider underline hover:text-blue-100">
-              Verify students to claim &rarr;
-            </Link>
-          </div>
-        </div>
-  
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 print:hidden">
         <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
           <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1.5">Total Financed Pipeline</p>
           <p className="text-2xl font-black text-[#0a1128] truncate">₦{metrics.totalFinanced.toLocaleString()}</p>
@@ -236,12 +208,10 @@ export default function SchoolDashboard() {
       {/* PAYMENT LEDGER TABLE */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden print:border-none print:shadow-none">
         
-        {/* Ledger Header with Filters & Print Button */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-50/50 p-4 sm:p-5 border-b border-gray-200 print:bg-white print:border-b-2 print:border-gray-900 print:mb-4">
           <div>
             <h2 className="text-base font-bold text-[#0a1128] print:text-xl">{targetSchool} - Payment Ledger</h2>
-            <p className="text-xs text-gray-500 mt-0.5 print:hidden">Real-time transparency on funds remitted to PayTerm Escrow.</p>
-            {/* Print-only context */}
+            <p className="text-xs text-gray-500 mt-0.5 print:hidden">Real-time transparency on funds remitted to your PayTerm Account.</p>
             <p className="hidden print:block text-xs text-gray-500 mt-1">Generated on: {new Date().toLocaleDateString()}</p>
           </div>
           
@@ -274,7 +244,7 @@ export default function SchoolDashboard() {
                 <th className="p-4 font-bold">Student</th>
                 <th className="p-4 font-bold">Base School Tuition</th>
                 <th className="p-4 font-bold text-red-600 print:text-black">Outstanding</th>
-                <th className="p-4 font-bold text-green-700 print:text-black">Amount Paid</th>
+                <th className="p-4 font-bold text-blue-700 print:text-black">Amount Paid (Account)</th>
                 <th className="p-4 font-bold text-right print:text-left">Status</th>
               </tr>
             </thead>
@@ -287,7 +257,7 @@ export default function SchoolDashboard() {
                 </tr>
               ) : (
                 filteredPayments.map((tx, index) => (
-                  <tr key={index} className={`hover:bg-gray-50 transition-colors ${tx.status === 'Pending Verification' ? 'bg-orange-50/30 print:bg-transparent' : ''}`}>
+                  <tr key={index} className="hover:bg-gray-50 transition-colors">
                     <td className="p-4">
                       <p className="font-bold text-[#0a1128] text-sm print:text-black">{tx.studentName}</p>
                       <p className="text-[10px] text-gray-500 font-medium mt-0.5 print:text-gray-700">{tx.className}</p>
@@ -301,16 +271,14 @@ export default function SchoolDashboard() {
                       </span>
                     </td>
                     <td className="p-4">
-                      <span className="text-xs font-bold text-green-600 font-mono print:text-black">
+                      <span className="text-xs font-bold text-blue-600 font-mono print:text-black">
                         ₦{tx.amountPaid.toLocaleString()}
                       </span>
                     </td>
                     <td className="p-4 text-right print:text-left">
-                      <span className={`px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider border inline-block ${
-                        tx.status === 'Verified' ? 'bg-green-50 text-green-700 border-green-200 print:border-none print:p-0 print:bg-transparent print:text-black' 
-                        : 'bg-orange-50 text-orange-700 border-orange-200 print:border-none print:p-0 print:bg-transparent print:text-black'
-                      }`}>
-                        {tx.status === 'Verified' ? 'Cleared' : 'Awaiting Claim'}
+                      {/* FIX: Status is now permanently "Cleared" in green for any ledger entry */}
+                      <span className="px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider border inline-block bg-green-50 text-green-700 border-green-200 print:border-none print:p-0 print:bg-transparent print:text-black">
+                        Cleared
                       </span>
                     </td>
                   </tr>

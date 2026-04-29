@@ -29,7 +29,7 @@ export default function ParentDashboard() {
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null)
   const [renewConfig, setRenewConfig] = useState<any | null>(null)
 
-  // NEW: Breakdown Modal State
+  // Breakdown Modal State
   const [breakdownConfig, setBreakdownConfig] = useState<{
     plan: any; child: any; isFirstPayment: boolean;
   } | null>(null)
@@ -41,15 +41,15 @@ export default function ParentDashboard() {
 
   const fetchDashboardData = useCallback(async () => {
     try {
-      // 1. Fast Check: Reads local storage (Handles page refreshes perfectly)
+      // 1. Fast Check: Reads local storage
       const { data: { session } } = await supabase.auth.getSession()
       let activeUserId = session?.user?.id
 
-      // 2. Secure Safety Net: If local storage lags (Tab-switching), ping the server
+      // 2. Secure Safety Net: Ping the server
       if (!activeUserId) {
         const { data: { user }, error: userError } = await supabase.auth.getUser()
         if (userError || !user) {
-          router.push('/parent-login')
+          window.location.href = '/parent-login' 
           return
         }
         activeUserId = user.id
@@ -81,11 +81,21 @@ export default function ParentDashboard() {
 
         const finalStudentsData = students.map((child: any) => {
           const foundSchool = schoolsData?.find((sch: any) => sch.id === child.school_id)
+          
           if (child.active_plans) {
             child.active_plans.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            
+            // FIX: Force any legacy 'Pending Verification' plans to instantly read as 'Active'
+            child.active_plans = child.active_plans.map((plan: any) => ({
+              ...plan,
+              status: plan.status === 'Pending Verification' ? 'Active' : plan.status
+            }))
           }
+          
           return {
             ...child,
+            // FIX: Force any legacy 'Pending Verification' students to instantly read as 'Active'
+            enrollment_status: child.enrollment_status === 'Pending Verification' ? 'Active' : child.enrollment_status,
             display_school_name: foundSchool ? foundSchool.name : child.school_id
           }
         })
@@ -98,23 +108,29 @@ export default function ParentDashboard() {
     } finally {
       setLoading(false)
     }
-  }, [router])
+  }, [])
 
   useEffect(() => {
     fetchDashboardData()
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') router.push('/parent-login')
+    
+    // 3. Tab-Switching Security
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
+      if (event === 'SIGNED_OUT') {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          window.location.href = '/parent-login'
+        }
+      }
     })
+    
     return () => authListener.subscription.unsubscribe()
-  }, [fetchDashboardData, router])
+  }, [fetchDashboardData])
 
-  // STEP 1: Intercept the Pay button to show the Breakdown Modal first
   const handleShowBreakdown = (plan: any, child: any) => {
     const isFirstPayment = Number(plan.amount_paid) === 0
     setBreakdownConfig({ plan, child, isFirstPayment })
   }
 
-  // STEP 2: The actual trigger for Paystack (called from the breakdown modal)
   const triggerPayment = (amountToPay: number) => {
     if (!breakdownConfig) return
     const { plan, child, isFirstPayment } = breakdownConfig
@@ -124,7 +140,7 @@ export default function ParentDashboard() {
       isOpen: true, amount: amountToPay, email: dummyEmail, studentName: child.full_name,
       studentClass: child.student_class, planId: plan.id, studentId: child.id, isMidTerm: !isFirstPayment
     })
-    setBreakdownConfig(null) // Close breakdown modal
+    setBreakdownConfig(null) 
   }
 
   const handlePaymentSuccess = async (reference: string) => {
@@ -147,12 +163,12 @@ export default function ParentDashboard() {
     }
   }
 
-  if (loading) return <div className="p-10 text-center text-sm font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Loading Dashboard...</div>
+  if (loading) return <div className="p-10 text-center text-sm font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Authenticating Secure Session...</div>
 
   return (
     <div className="w-full max-w-6xl mx-auto p-4 sm:p-6 lg:p-10 animate-in fade-in pb-24">
       
-      {/* 1. NEW PAYMENT BREAKDOWN MODAL */}
+      {/* PAYMENT BREAKDOWN MODAL */}
       {breakdownConfig && (() => {
         const { fee: serviceFee, base: baseTuition } = getFeeBreakdown(Number(breakdownConfig.plan.total_fee))
         const depositAmount = baseTuition * 0.60
@@ -211,7 +227,7 @@ export default function ParentDashboard() {
         )
       })()}
 
-      {/* 2. EXTERNALLY MANAGED MODALS */}
+      {/* EXTERNALLY MANAGED MODALS */}
       {paystackConfig && (
         <DummyPaystack
           isOpen={paystackConfig.isOpen} onClose={() => setPaystackConfig(null)} onSuccess={handlePaymentSuccess}
@@ -244,12 +260,17 @@ export default function ParentDashboard() {
           </h1>
           <p className="text-gray-500 text-sm mt-1">Manage your active payment plans and student enrollments.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link href="/parent/profile" className="hidden sm:flex px-5 py-2.5 border border-gray-300 bg-white rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <Link href="/parent/profile" className="hidden sm:flex px-5 py-3 border border-gray-300 bg-white rounded-full text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
             Profile
           </Link>
-          <Link href="/parent/add-student" className="w-full sm:w-auto bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-sm flex items-center justify-center gap-2 active:scale-95">
-            + Register Child
+          
+          <Link href="/parent/add-student" className="group relative w-full sm:w-auto flex items-center justify-center gap-3 px-6 py-3 bg-[#0a1128] text-white rounded-full font-bold text-sm transition-all hover:shadow-xl hover:shadow-blue-900/20 active:scale-95 overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+            <div className="relative flex items-center justify-center w-6 h-6 rounded-full bg-white/10 shadow-inner border border-white/20">
+              <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" /></svg>
+            </div>
+            <span className="relative tracking-wide">Add New Student</span>
           </Link>
         </div>
       </div>
@@ -261,11 +282,19 @@ export default function ParentDashboard() {
       {/* STUDENTS GRID */}
       <div className={childrenData.length === 0 ? "" : "grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5"}>
         {childrenData.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-dashed border-gray-300 p-8 text-center flex flex-col items-center justify-center shadow-sm">
-            <h3 className="text-base font-bold text-[#0a1128] mb-1">No Students Linked</h3>
-            <p className="text-gray-500 text-xs font-medium mb-5">Register your child to a partner school to see your plans here.</p>
-            <Link href="/parent/add-student" className="bg-blue-600 text-white px-6 py-3 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-700 active:scale-95 transition-all">
-              + Register Child
+          <div className="bg-white rounded-3xl border border-dashed border-gray-300 p-10 text-center flex flex-col items-center justify-center shadow-sm">
+            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" /></svg>
+            </div>
+            <h3 className="text-lg font-bold text-[#0a1128] mb-2">No Students Linked</h3>
+            <p className="text-gray-500 text-sm font-medium mb-6 max-w-xs mx-auto">Register your child to a partner school to see your plans here.</p>
+            
+            <Link href="/parent/add-student" className="group relative w-full sm:w-auto flex items-center justify-center gap-3 px-6 py-3 bg-[#0a1128] text-white rounded-full font-bold text-sm transition-all hover:shadow-xl hover:shadow-blue-900/20 active:scale-95 overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <div className="relative flex items-center justify-center w-6 h-6 rounded-full bg-white/10 shadow-inner border border-white/20">
+                <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" /></svg>
+              </div>
+              <span className="relative tracking-wide">Add New Student</span>
             </Link>
           </div>
         ) : (
@@ -275,7 +304,7 @@ export default function ParentDashboard() {
               child={child}
               expandedHistoryId={expandedHistoryId}
               onToggleHistory={(id: string) => setExpandedHistoryId(prev => prev === id ? null : id)}
-              onPay={handleShowBreakdown} // Now triggers the breakdown modal first!
+              onPay={handleShowBreakdown} 
               onRenew={setRenewConfig}
               onViewReceipt={setActiveReceipt}
             />
