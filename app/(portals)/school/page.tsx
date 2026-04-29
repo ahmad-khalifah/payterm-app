@@ -21,7 +21,8 @@ export default function SchoolDashboard() {
 
   const [metrics, setMetrics] = useState({
     activeStudents: 0,
-    totalFinanced: 0,
+    totalExpected: 0,
+    parentsOutstanding: 0,
     payoutsCleared: 0
   })
 
@@ -49,7 +50,8 @@ export default function SchoolDashboard() {
 
       if (error) throw error
 
-      let financed = 0
+      let expected = 0
+      let outstanding = 0
       let cleared = 0
       let activeCount = 0
       let ledger: any[] = [] 
@@ -62,9 +64,11 @@ export default function SchoolDashboard() {
           const { base: baseTuition } = getFeeBreakdown(Number(plan.total_fee))
           const amountPaid = Number(plan.amount_paid)
           const totalInvoice = Number(plan.total_fee)
+          const parentOwes = Math.max(0, totalInvoice - amountPaid)
           
           activeCount++
-          financed += baseTuition
+          expected += baseTuition
+          outstanding += parentOwes
           
           if (amountPaid > 0) {
             const progress = amountPaid / totalInvoice
@@ -78,7 +82,7 @@ export default function SchoolDashboard() {
               baseTuition: baseTuition,
               totalInvoice: totalInvoice,
               amountPaid: amountPaid,
-              outstanding: Math.max(0, totalInvoice - amountPaid)
+              outstanding: parentOwes
             })
           }
         })
@@ -86,7 +90,8 @@ export default function SchoolDashboard() {
         if (isMounted) {
           setMetrics({
             activeStudents: activeCount,
-            totalFinanced: financed,
+            totalExpected: expected,
+            parentsOutstanding: outstanding,
             payoutsCleared: cleared
           })
           setRecentPayments(ledger)
@@ -110,7 +115,7 @@ export default function SchoolDashboard() {
        if (!activeUserId) {
          const { data: { user }, error: userError } = await supabase.auth.getUser()
          if (userError || !user) {
-           router.push('/school-login')
+           window.location.href = '/school-login'
            return
          }
          activeUserId = user.id
@@ -127,7 +132,7 @@ export default function SchoolDashboard() {
         if (profileError) throw profileError
         
         if (!schoolProfile) {
-          router.push('/school-login')
+          window.location.href = '/school-login'
           return
         }
 
@@ -146,7 +151,7 @@ export default function SchoolDashboard() {
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
-        router.push('/school-login')
+        window.location.href = '/school-login'
       }
     })
 
@@ -169,7 +174,7 @@ export default function SchoolDashboard() {
     return () => { supabase.removeChannel(channel) }
   }, [schoolId]) 
 
-  if (loading || !targetSchool) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest h-full flex items-center justify-center animate-pulse">Loading dashboard...</div>
+  if (loading || !targetSchool) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Authenticating Secure Session...</div>
 
   const uniqueClasses = Array.from(new Set(recentPayments.map(tx => tx.className).filter(Boolean))).sort()
   const filteredPayments = classFilter === 'All' ? recentPayments : recentPayments.filter(tx => tx.className === classFilter)
@@ -188,12 +193,17 @@ export default function SchoolDashboard() {
         </Link>
       </div>
   
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 print:hidden">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 print:hidden">
         <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
-          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1.5">Total Financed Pipeline</p>
-          <p className="text-2xl font-black text-[#0a1128] truncate">₦{metrics.totalFinanced.toLocaleString()}</p>
+          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1.5">Total Expected Tuition</p>
+          <p className="text-2xl font-black text-[#0a1128] truncate">₦{metrics.totalExpected.toLocaleString()}</p>
         </div>
         
+        <div className="bg-red-50 p-5 rounded-2xl border border-red-200 shadow-sm">
+          <p className="text-[10px] font-bold text-red-700 uppercase tracking-wide mb-1.5">Parents Outstanding</p>
+          <p className="text-2xl font-black text-red-800 truncate">₦{metrics.parentsOutstanding.toLocaleString()}</p>
+        </div>
+
         <div className="bg-green-50 p-5 rounded-2xl border border-green-200 shadow-sm">
           <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-1.5">Cleared for Withdrawal</p>
           <p className="text-2xl font-black text-green-800 truncate">₦{metrics.payoutsCleared.toLocaleString()}</p>
@@ -276,7 +286,6 @@ export default function SchoolDashboard() {
                       </span>
                     </td>
                     <td className="p-4 text-right print:text-left">
-                      {/* FIX: Status is now permanently "Cleared" in green for any ledger entry */}
                       <span className="px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider border inline-block bg-green-50 text-green-700 border-green-200 print:border-none print:p-0 print:bg-transparent print:text-black">
                         Cleared
                       </span>
