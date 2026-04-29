@@ -26,11 +26,14 @@ export default function SchoolDashboard() {
     payoutsCleared: 0
   })
 
-  const [recentPayments, setRecentPayments] = useState<any[]>([])
-  const [classFilter, setClassFilter] = useState<string>('All')
+  // NEW: Household Grouped State
+  const [householdLedger, setHouseholdLedger] = useState<any[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterStatus, setFilterStatus] = useState('All')
 
   const fetchDashboardData = async (idToFetch: string, isMounted: boolean = true) => {
     try {
+      // 1. Fetch School Tier Profile
       const { data: schoolData } = await supabase
         .from('partner_schools')
         .select('*')
@@ -40,25 +43,34 @@ export default function SchoolDashboard() {
       const payoutRate = (schoolData as any)?.tier === 'Tier 2' ? 0.70 : 0.60
       const remainderRate = (schoolData as any)?.tier === 'Tier 2' ? 0.30 : 0.40
 
+      // 2. Fetch only students for THIS school, plus their plans
       const { data: studentData, error } = await supabase
         .from('students')
         .select(`
-          id, full_name, student_class,
-          active_plans ( total_fee, amount_paid )
+          id, full_name, student_class, enrollment_status, parent_id,
+          active_plans ( id, total_fee, amount_paid, status, next_payment_date )
         `)
         .eq('school_id', idToFetch)
 
       if (error) throw error
 
       let expected = 0
-      let outstanding = 0
+      let outstandingTotal = 0
       let cleared = 0
       let activeCount = 0
-      let ledger: any[] = [] 
+      let groupedHouseholds: Record<string, any> = {} 
 
-      if (studentData) {
+      if (studentData && studentData.length > 0) {
+        // 3. Fetch Parent Details securely for the enrolled students
+        const parentIds = [...new Set(studentData.map(s => s.parent_id).filter(Boolean))]
+        const { data: parentsData } = await supabase
+          .from('parents')
+          .select('id, full_name, email, phone')
+          .in('id', parentIds)
+
+        // 4. Process and Group by Household
         studentData.forEach(student => {
-          const plan = student.active_plans[0]
+          const plan = student.active_plans?.[0]
           if (!plan) return
 
           const { base: baseTuition } = getFeeBreakdown(Number(plan.total_fee))
@@ -68,33 +80,71 @@ export default function SchoolDashboard() {
           
           activeCount++
           expected += baseTuition
-          outstanding += parentOwes
+          outstandingTotal += parentOwes
           
           if (amountPaid > 0) {
             const progress = amountPaid / totalInvoice
             if (progress >= 0.59) cleared += (baseTuition * payoutRate)
             if (progress >= 0.99) cleared += (baseTuition * remainderRate)
-
-            ledger.push({
-              id: student.id,
-              studentName: student.full_name,
-              className: student.student_class,
-              baseTuition: baseTuition,
-              totalInvoice: totalInvoice,
-              amountPaid: amountPaid,
-              outstanding: parentOwes
-            })
           }
+
+          const pId = student.parent_id
+          if (!pId) return
+
+          if (!groupedHouseholds[pId]) {
+            const pData = (parentsData || []).find(p => p.id === pId)
+            groupedHouseholds[pId] = {
+              parent_id: pId,
+              parent_name: pData?.full_name || 'Unknown Parent',
+              parent_phone: pData?.phone || 'No Phone',
+              parent_email: pData?.email || 'No Email',
+              children: [],
+              total_outstanding: 0,
+              statuses: new Set(),
+              earliest_due: null,
+            }
+          }
+
+          groupedHouseholds[pId].total_outstanding += parentOwes
+          groupedHouseholds[pId].statuses.add(plan.status)
+
+          if (plan.next_payment_date) {
+            const planDate = new Date(plan.next_payment_date).getTime()
+            if (!groupedHouseholds[pId].earliest_due || planDate < groupedHouseholds[pId].earliest_due) {
+              groupedHouseholds[pId].earliest_due = planDate
+            }
+          }
+
+          groupedHouseholds[pId].children.push({
+            student_name: student.full_name,
+            className: student.student_class,
+            outstanding: parentOwes,
+            amountPaid: amountPaid,
+            baseTuition: baseTuition
+          })
         })
+
+        // 5. Determine Household Health and format array
+        let ledgerArr = Object.values(groupedHouseholds).map((g: any) => {
+          let hStatus = 'Active'
+          if (g.statuses.has('Default')) hStatus = 'Default'
+          else if (g.statuses.has('Late')) hStatus = 'Late'
+          else if (g.statuses.has('Pending Verification')) hStatus = 'Pending'
+
+          return { ...g, household_status: hStatus }
+        })
+
+        // Sort by highest outstanding balance at the top
+        ledgerArr.sort((a: any, b: any) => b.total_outstanding - a.total_outstanding)
 
         if (isMounted) {
           setMetrics({
             activeStudents: activeCount,
             totalExpected: expected,
-            parentsOutstanding: outstanding,
+            parentsOutstanding: outstandingTotal,
             payoutsCleared: cleared
           })
-          setRecentPayments(ledger)
+          setHouseholdLedger(ledgerArr)
         }
       }
     } catch (err: any) {
@@ -174,10 +224,18 @@ export default function SchoolDashboard() {
     return () => { supabase.removeChannel(channel) }
   }, [schoolId]) 
 
-  if (loading || !targetSchool) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Authenticating Secure Session...</div>
+  const handleNudge = (parentName: string, phone: string, amount: number) => {
+    alert(`School Action: Reminder drafted for ${parentName} regarding their ₦${amount.toLocaleString()} balance at ${phone}.`)
+  }
 
-  const uniqueClasses = Array.from(new Set(recentPayments.map(tx => tx.className).filter(Boolean))).sort()
-  const filteredPayments = classFilter === 'All' ? recentPayments : recentPayments.filter(tx => tx.className === classFilter)
+  const filteredLedger = householdLedger.filter(item => {
+    const searchString = `${item.parent_name} ${item.parent_phone} ${item.children.map((c: any) => `${c.student_name} ${c.className}`).join(' ')}`.toLowerCase()
+    const matchesSearch = searchString.includes(searchQuery.toLowerCase())
+    const matchesStatus = filterStatus === 'All' || item.household_status === filterStatus;
+    return matchesSearch && matchesStatus;
+  })
+
+  if (loading || !targetSchool) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Authenticating Secure Session...</div>
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in pb-20">
@@ -193,6 +251,7 @@ export default function SchoolDashboard() {
         </Link>
       </div>
   
+      {/* Hide Metrics on Print */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 print:hidden">
         <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
           <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1.5">Total Expected Tuition</p>
@@ -215,31 +274,34 @@ export default function SchoolDashboard() {
         </div>
       </div>
   
-      {/* PAYMENT LEDGER TABLE */}
+      {/* HOUSEHOLD LEDGER TABLE */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden print:border-none print:shadow-none">
         
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-50/50 p-4 sm:p-5 border-b border-gray-200 print:bg-white print:border-b-2 print:border-gray-900 print:mb-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50/50 p-4 sm:p-5 border-b border-gray-200 print:bg-white print:border-b-2 print:border-gray-900 print:mb-4">
           <div>
-            <h2 className="text-base font-bold text-[#0a1128] print:text-xl">{targetSchool} - Payment Ledger</h2>
-            <p className="text-xs text-gray-500 mt-0.5 print:hidden">Real-time transparency on funds remitted to your PayTerm Account.</p>
+            <h2 className="text-base font-bold text-[#0a1128] print:text-xl">{targetSchool} - Parent Collections</h2>
+            <p className="text-xs text-gray-500 mt-0.5 print:hidden">Household-level transparency for active parent payments.</p>
             <p className="hidden print:block text-xs text-gray-500 mt-1">Generated on: {new Date().toLocaleDateString()}</p>
           </div>
           
-          <div className="flex w-full sm:w-auto items-center gap-3 print:hidden">
+          <div className="flex flex-col sm:flex-row w-full md:w-auto items-center gap-3 print:hidden">
+            <input 
+              type="text" placeholder="Search parent or student..." 
+              value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+              className="w-full sm:w-auto flex-1 border border-gray-300 bg-white p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-600 text-sm text-[#0a1128] shadow-sm transition-all"
+            />
             <select 
-              value={classFilter} 
-              onChange={(e) => setClassFilter(e.target.value)}
-              className="flex-1 sm:w-auto bg-white border border-gray-300 text-sm rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-600 font-medium text-gray-700 shadow-sm"
+              value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+              className="w-full sm:w-auto border border-gray-300 bg-white p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-600 text-sm font-medium text-[#0a1128] shadow-sm transition-all"
             >
-              <option value="All">All Classes</option>
-              {uniqueClasses.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
+              <option value="All">All Health</option>
+              <option value="Active">Active (On Track)</option>
+              <option value="Late">Late (Missed)</option>
+              <option value="Default">Default (Critical)</option>
             </select>
-            
             <button 
               onClick={() => window.print()}
-              className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-gray-50 transition-colors flex items-center gap-2"
+              className="w-full sm:w-auto bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
               Print
@@ -248,50 +310,74 @@ export default function SchoolDashboard() {
         </div>
         
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse whitespace-nowrap">
+          <table className="w-full text-left text-sm border-collapse whitespace-nowrap">
             <thead>
-              <tr className="border-b border-gray-200 text-[10px] text-gray-500 uppercase tracking-wider bg-gray-50/20 print:bg-gray-100 print:text-black">
-                <th className="p-4 font-bold">Student</th>
-                <th className="p-4 font-bold">Base School Tuition</th>
-                <th className="p-4 font-bold text-red-600 print:text-black">Outstanding</th>
-                <th className="p-4 font-bold text-blue-700 print:text-black">Amount Paid (Account)</th>
-                <th className="p-4 font-bold text-right print:text-left">Status</th>
+              <tr className="bg-gray-50/50 border-b border-gray-100 text-[10px] text-gray-500 uppercase tracking-wider print:bg-gray-100 print:text-black">
+                <th className="p-4 font-bold">Household / Contact</th>
+                <th className="p-4 font-bold">Enrolled Students</th>
+                <th className="p-4 font-bold">Health Status</th>
+                <th className="p-4 font-bold text-right print:text-left">Next Due</th>
+                <th className="p-4 font-bold text-right">Household Arrears</th>
+                <th className="p-4 font-bold text-right print:hidden">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 print:divide-gray-300">
-              {filteredPayments.length === 0 ? (
+              {filteredLedger.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-sm text-gray-500 font-medium">
-                    No parent payments found for {classFilter === 'All' ? 'this school' : `class ${classFilter}`}.
+                  <td colSpan={6} className="p-8 text-center text-sm font-medium text-gray-500">
+                    No matching household records found.
                   </td>
                 </tr>
               ) : (
-                filteredPayments.map((tx, index) => (
-                  <tr key={index} className="hover:bg-gray-50 transition-colors">
-                    <td className="p-4">
-                      <p className="font-bold text-[#0a1128] text-sm print:text-black">{tx.studentName}</p>
-                      <p className="text-[10px] text-gray-500 font-medium mt-0.5 print:text-gray-700">{tx.className}</p>
-                    </td>
-                    <td className="p-4 text-xs font-medium text-gray-500 font-mono print:text-black">
-                      ₦{tx.baseTuition.toLocaleString()}
-                    </td>
-                    <td className="p-4">
-                      <span className={`text-xs font-bold font-mono ${tx.outstanding > 0 ? 'text-red-600' : 'text-gray-400'} print:text-black`}>
-                        ₦{tx.outstanding.toLocaleString()}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <span className="text-xs font-bold text-blue-600 font-mono print:text-black">
-                        ₦{tx.amountPaid.toLocaleString()}
-                      </span>
-                    </td>
-                    <td className="p-4 text-right print:text-left">
-                      <span className="px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider border inline-block bg-green-50 text-green-700 border-green-200 print:border-none print:p-0 print:bg-transparent print:text-black">
-                        Cleared
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                filteredLedger.map((item) => {
+                  const isCritical = item.household_status === 'Default' || item.household_status === 'Late'
+                  
+                  return (
+                    <tr key={item.parent_id} className={`hover:bg-gray-50 transition-colors ${isCritical ? 'bg-red-50/10' : ''}`}>
+                      <td className="p-4 align-top">
+                        <p className="font-bold text-[#0a1128] text-sm print:text-black">{item.parent_name}</p>
+                        <p className="text-[11px] text-gray-500 mt-1 font-mono print:text-gray-700">{item.parent_phone}</p>
+                      </td>
+                      <td className="p-4 align-top">
+                        <div className="space-y-3">
+                          {item.children.map((child: any, idx: number) => (
+                            <div key={idx} className="flex flex-col gap-0.5">
+                              <p className="text-xs font-bold text-gray-800 print:text-black">{child.student_name} <span className="text-gray-400 font-normal">({child.className})</span></p>
+                              {child.outstanding > 0 ? (
+                                <p className="text-[10px] text-red-600 font-mono font-medium print:text-black">Owing: ₦{child.outstanding.toLocaleString()}</p>
+                              ) : (
+                                <p className="text-[10px] text-green-600 font-mono font-medium print:text-black">Cleared</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="p-4 align-top">
+                        <span className={`px-2.5 py-1 rounded text-[9px] font-bold uppercase tracking-wider border inline-block ${
+                          item.household_status === 'Active' ? 'bg-blue-50 text-blue-700 border-blue-200 print:border-none print:p-0 print:bg-transparent print:text-black' : 
+                          item.household_status === 'Late' ? 'bg-orange-50 text-orange-700 border-orange-200 print:border-none print:p-0 print:bg-transparent print:text-black' : 
+                          'bg-red-50 text-red-700 border-red-200 print:border-none print:p-0 print:bg-transparent print:text-black'
+                        }`}>
+                          {item.household_status}
+                        </span>
+                      </td>
+                      <td className="p-4 text-right print:text-left text-xs text-gray-600 font-medium align-top print:text-black">
+                        {item.earliest_due ? new Date(item.earliest_due).toLocaleDateString('en-GB') : 'N/A'}
+                      </td>
+                      <td className="p-4 text-right font-bold text-[#0a1128] font-mono text-sm align-top print:text-black">
+                        ₦{item.total_outstanding.toLocaleString()}
+                      </td>
+                      <td className="p-4 text-right align-top print:hidden">
+                        <button 
+                          onClick={() => handleNudge(item.parent_name, item.parent_phone, item.total_outstanding)}
+                          className="bg-white border border-gray-200 text-[#0a1128] px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gray-50 transition-colors shadow-sm active:scale-95"
+                        >
+                          Nudge
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
