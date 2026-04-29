@@ -15,7 +15,7 @@ export default function AdminSidebar() {
     // Renamed for clarity, but keeps your existing file path
     { name: 'Financial Ledger', href: '/admin/parents' }, 
     // The new directory page you are adding
-    { name: 'Registered Users', href: '/admin/users-parents' }, 
+    { name: 'Registered Users', href: '/admin/directory' }, 
     { name: 'System Settings', href: '/admin/settings' },
   ]
 

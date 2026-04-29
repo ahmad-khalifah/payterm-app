@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import Link from 'next/link'
+import PaymentPreviewBox from './components/PaymentPreviewBox'
 
 export default function AddStudentPage() {
   const router = useRouter()
@@ -106,7 +107,7 @@ export default function AddStudentPage() {
       if (studentError) throw studentError
 
       
-      // 2. Generate the 60/40 Financial Plan
+      // 2. Generate the Financial Plan
       const uniqueCode = `PT-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
       
       const { error: planError } = await supabase
@@ -115,7 +116,7 @@ export default function AddStudentPage() {
           student_id: studentData.id,
           parent_id: user.id,
           school_id: selectedSchool.id,
-          total_fee: selectedFeeConfig.parent_total_fee,
+          total_fee: selectedFeeConfig.parent_total_fee, // We insert Gross total here, the dashboard calculates the breakdown
           amount_paid: 0,
           next_payment_date: selectedFeeConfig.mid_term_date || null,
           status: 'Pending Verification',
@@ -123,7 +124,7 @@ export default function AddStudentPage() {
           mid_term_cleared: false, 
           payterm_advance: 0,
           academic_session: form.session, 
-          term: form.term                 
+          term: form.term                
         } as any) 
 
       if (planError) throw planError
@@ -249,21 +250,9 @@ export default function AddStudentPage() {
                   </select>
                 </div>
   
-                {activeClassData && (
-                  <div className="bg-[#0a1128] p-4 rounded-xl shadow-md text-white animate-in zoom-in-95 duration-200">
-                    <p className="text-blue-300 text-xs font-medium mb-3">Payment Summary</p>
-                    <div className="flex flex-col gap-3">
-                      <div className="flex justify-between items-center pb-3 border-b border-white/10">
-                        <span className="text-gray-300 text-sm">Total Fees</span>
-                        <span className="text-lg font-bold">₦{Number(activeClassData.parent_total_fee).toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-300 text-sm">Due Today (60%)</span>
-                        <span className="text-xl font-black text-green-400">₦{(Number(activeClassData.parent_total_fee) * 0.6).toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                {/* NEW COMPONENT REPLACES THE OLD HARDCODED BOX */}
+                <PaymentPreviewBox activeClassData={activeClassData} />
+                
               </div>
             )}
           </div>

@@ -2,7 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '../../../../lib/supabase'
+import { supabase } from '@/lib/supabase'
+
+// --- NEW UNIVERSAL PRICING ENGINE ---
+const getFeeBreakdown = (totalInvoice: number) => {
+  if (totalInvoice <= 52499) return { fee: 2500, base: totalInvoice - 2500 }
+  if (totalInvoice <= 105000) return { fee: 5000, base: totalInvoice - 5000 }
+  if (totalInvoice <= 208500) return { fee: 8500, base: totalInvoice - 8500 }
+  return { fee: 10000, base: totalInvoice - 10000 }
+}
 
 export default function AdminSchoolsPage() {
   const router = useRouter()
@@ -36,6 +44,8 @@ export default function AdminSchoolsPage() {
         .from('active_plans')
         .select('school_id, status, amount_paid, total_fee')
 
+      if (plansError) throw plansError
+
       // If plans fail to fetch (e.g., table is empty), default to an empty array
       const safePlans = plansData || []
 
@@ -48,12 +58,20 @@ export default function AdminSchoolsPage() {
         // Find plans that belong to this specific school
         const schoolPlans = safePlans.filter(p => p.school_id === school.id)
 
+        // NEW TIER LOGIC: Determine payout rate
+        const isTier2 = (school as any).tier === 'Tier 2'
+        const payoutRate = isTier2 ? 0.70 : 0.60
+
         schoolPlans.forEach(plan => {
           // Only count plans sitting in Escrow
           const isEscrow = plan.status === 'Pending Verification' || plan.status === 'Pending Escrow'
           if (isEscrow && Number(plan.amount_paid) > 0) {
-            const baseTuition = Number(plan.total_fee) / 1.05
-            const schoolTranche = baseTuition * 0.70
+            
+            // APPLY FLAT-RATE PRICING ENGINE
+            const { base: baseTuition } = getFeeBreakdown(Number(plan.total_fee))
+            
+            // Deploy dynamically based on school's tier
+            const schoolTranche = baseTuition * payoutRate
             schoolEscrow += schoolTranche
             globalEscrow += schoolTranche
           }
@@ -79,7 +97,7 @@ export default function AdminSchoolsPage() {
   useEffect(() => {
     fetchSchoolsAndEscrow()
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) router.push('/admin-login') 
+      if (event === 'SIGNED_OUT') router.push('/admin-login') 
     })
     return () => authListener.subscription.unsubscribe()
   }, [router])
@@ -120,11 +138,33 @@ export default function AdminSchoolsPage() {
     }
   }
 
+  // 3. Toggles the school between Tier 1 and Tier 2
+  const handleToggleTier = async (schoolId: string, schoolName: string, currentTier: string) => {
+    const newTier = currentTier === 'Tier 1' ? 'Tier 2' : 'Tier 1'
+    if (!window.confirm(`Upgrade ${schoolName} to ${newTier}? Ensure GSI mandates are signed.`)) return
+    
+    setActionLoading(schoolId)
+    try {
+      const { error } = await supabase
+        .from('partner_schools')
+        .update({ tier: newTier } as any) // Bypass strict typing if tier isn't in DB types yet
+        .eq('id', schoolId)
+
+      if (error) throw error
+      fetchSchoolsAndEscrow() // Instantly recalculates the payouts and overdrafts
+    } catch (err: any) {
+      alert(`Tier update failed: ${err.message}`)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   const handleDownloadCSV = () => {
-    const headers = ['Institution', 'State', 'Contact Email', 'Contact Phone', 'Unclaimed Escrow (NGN)', 'Status', 'Date Joined']
+    // NEW: Added Tier to CSV export
+    const headers = ['Institution', 'State', 'Contact Email', 'Contact Phone', 'Tier', 'Unclaimed Escrow (NGN)', 'Status', 'Date Joined']
     const csvRows = [headers.join(',')]
     filteredSchools.forEach(s => {
-      const row = [`"${s.name}"`, `"${s.state || 'N/A'}"`, `"${s.finance_email || s.email}"`, `"${s.contact_phone}"`, `"${s.unclaimed_escrow || 0}"`, `"${s.status}"`, `"${new Date(s.created_at).toLocaleDateString()}"`]
+      const row = [`"${s.name}"`, `"${s.state || 'N/A'}"`, `"${s.finance_email || s.email}"`, `"${s.contact_phone}"`, `"${(s as any).tier || 'Tier 1'}"`, `"${s.unclaimed_escrow || 0}"`, `"${s.status}"`, `"${new Date(s.created_at).toLocaleDateString()}"`]
       csvRows.push(row.join(','))
     })
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' })
@@ -215,6 +255,10 @@ export default function AdminSchoolsPage() {
                   <div className="flex-1 min-w-[220px]">
                     <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-1.5">
                       <h3 className="font-bold text-[#0a1128] text-base md:text-lg tracking-tight">{school.name}</h3>
+                      {/* NEW: Tier Badge */}
+                      <span className="px-2 py-0.5 rounded text-purple-700 bg-purple-50 border border-purple-200 text-[10px] font-bold tracking-wider uppercase">
+                        {(school as any).tier || 'Tier 1'}
+                      </span>
                       {school.state && (
                         <span className="px-2 py-0.5 rounded text-gray-600 bg-gray-100 border border-gray-200 text-[10px] font-bold tracking-wider uppercase">
                           {school.state}
@@ -267,9 +311,22 @@ export default function AdminSchoolsPage() {
                         </button>
                       )}
                       {school.status === 'Active' && (
-                        <button onClick={() => handleRevoke(school.id, school.name)} disabled={actionLoading === school.id} className="px-4 py-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-xl text-xs font-bold transition-all shadow-sm disabled:opacity-50">
-                          {actionLoading === school.id ? '...' : 'Suspend'}
-                        </button>
+                        <>
+                          <button 
+                            onClick={() => handleToggleTier(school.id, school.name, (school as any).tier || 'Tier 1')} 
+                            disabled={actionLoading === school.id} 
+                            className="px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 rounded-xl text-xs font-bold transition-all shadow-sm disabled:opacity-50"
+                          >
+                            {actionLoading === school.id ? '...' : ((school as any).tier === 'Tier 2' ? 'Downgrade to Tier 1' : 'Upgrade to Tier 2')}
+                          </button>
+                          <button 
+                            onClick={() => handleRevoke(school.id, school.name)} 
+                            disabled={actionLoading === school.id} 
+                            className="px-4 py-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-xl text-xs font-bold transition-all shadow-sm disabled:opacity-50"
+                          >
+                            {actionLoading === school.id ? '...' : 'Suspend'}
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>

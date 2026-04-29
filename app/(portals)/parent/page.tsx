@@ -4,24 +4,18 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '../../../lib/supabase'
+
 import DummyPaystack from './components/DummyPaystack'
+import StudentCard from './components/StudentCard'
+import RenewalModal from './components/RenewalModal'
+import ReceiptModal from './components/ReceiptModal'
 
-// --- AUTO-CALCULATION ENGINE ---
-const calculateNextTerm = (currentSession: string, currentTerm: string) => {
-  if (!currentSession || !currentTerm) return { nextSession: '', nextTerm: '' }
-
-  if (currentTerm === 'First Term') return { nextSession: currentSession, nextTerm: 'Second Term' }
-  if (currentTerm === 'Second Term') return { nextSession: currentSession, nextTerm: 'Third Term' }
-  
-  if (currentTerm === 'Third Term') {
-    const years = currentSession.split('/')
-    if (years.length === 2) {
-      const nextYear1 = parseInt(years[0]) + 1
-      const nextYear2 = parseInt(years[1]) + 1
-      return { nextSession: `${nextYear1}/${nextYear2}`, nextTerm: 'First Term' }
-    }
-  }
-  return { nextSession: currentSession, nextTerm: 'First Term' }
+// --- NEW UNIVERSAL PRICING ENGINE ---
+export const getFeeBreakdown = (totalInvoice: number) => {
+  if (totalInvoice <= 52499) return { fee: 2500, base: totalInvoice - 2500 }
+  if (totalInvoice <= 105000) return { fee: 5000, base: totalInvoice - 5000 }
+  if (totalInvoice <= 208500) return { fee: 8500, base: totalInvoice - 8500 }
+  return { fee: 10000, base: totalInvoice - 10000 }
 }
 
 export default function ParentDashboard() {
@@ -33,35 +27,37 @@ export default function ParentDashboard() {
   
   const [activeReceipt, setActiveReceipt] = useState<any | null>(null)
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null)
+  const [renewConfig, setRenewConfig] = useState<any | null>(null)
 
-  // Payment State
+  // NEW: Breakdown Modal State
+  const [breakdownConfig, setBreakdownConfig] = useState<{
+    plan: any; child: any; isFirstPayment: boolean;
+  } | null>(null)
+
   const [paystackConfig, setPaystackConfig] = useState<{
     isOpen: boolean; amount: number; email: string; studentName: string;
     studentClass: string; planId: string; studentId: string; isMidTerm: boolean;
   } | null>(null)
 
-  // Renewal State
-  const [renewConfig, setRenewConfig] = useState<{ 
-    studentId: string, schoolId: string, schoolName: string, currentClass: string 
-  } | null>(null)
-  
-  const [renewForm, setRenewForm] = useState({ session: '', term: '', className: '' })
-  const [isRenewing, setIsRenewing] = useState(false)
-
-  const classList = ["JSS 1", "JSS 2", "JSS 3", "SS 1", "SS 2", "SS 3", "Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6"]
-
   const fetchDashboardData = useCallback(async () => {
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      if (sessionError || !session?.user) {
-        router.push('/parent-login')
-        return
+      // 1. Fast Check: Reads local storage (Handles page refreshes perfectly)
+      const { data: { session } } = await supabase.auth.getSession()
+      let activeUserId = session?.user?.id
+
+      // 2. Secure Safety Net: If local storage lags (Tab-switching), ping the server
+      if (!activeUserId) {
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        if (userError || !user) {
+          router.push('/parent-login')
+          return
+        }
+        activeUserId = user.id
       }
       
-      const userId = session.user.id
-      setCurrentUserId(userId)
-
-      const { data: parentProfile } = await supabase.from('parents').select('full_name').eq('id', userId).single()
+      setCurrentUserId(activeUserId)
+      
+      const { data: parentProfile } = await supabase.from('parents').select('full_name').eq('id', activeUserId).single()
       if (parentProfile) setParentName(parentProfile.full_name)
 
       const { data: students, error: studentError } = await supabase
@@ -74,7 +70,7 @@ export default function ParentDashboard() {
             payment_history ( id, amount, receipt_number, payment_date, status )
           )
         `)
-        .eq('parent_id', userId)
+        .eq('parent_id', activeUserId)
         .order('created_at', { ascending: false })
 
       if (studentError) throw studentError
@@ -107,20 +103,28 @@ export default function ParentDashboard() {
   useEffect(() => {
     fetchDashboardData()
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) router.push('/parent-login')
+      if (event === 'SIGNED_OUT') router.push('/parent-login')
     })
     return () => authListener.subscription.unsubscribe()
   }, [fetchDashboardData, router])
 
-  const triggerPayment = (plan: any, child: any) => {
+  // STEP 1: Intercept the Pay button to show the Breakdown Modal first
+  const handleShowBreakdown = (plan: any, child: any) => {
     const isFirstPayment = Number(plan.amount_paid) === 0
-    const paymentAmount = isFirstPayment ? Number(plan.total_fee) * 0.60 : Number(plan.total_fee) - Number(plan.amount_paid)
+    setBreakdownConfig({ plan, child, isFirstPayment })
+  }
+
+  // STEP 2: The actual trigger for Paystack (called from the breakdown modal)
+  const triggerPayment = (amountToPay: number) => {
+    if (!breakdownConfig) return
+    const { plan, child, isFirstPayment } = breakdownConfig
     const dummyEmail = parentName ? `${parentName.replace(/\s+/g, '').toLowerCase()}@email.com` : 'parent@email.com'
 
     setPaystackConfig({
-      isOpen: true, amount: paymentAmount, email: dummyEmail, studentName: child.full_name,
+      isOpen: true, amount: amountToPay, email: dummyEmail, studentName: child.full_name,
       studentClass: child.student_class, planId: plan.id, studentId: child.id, isMidTerm: !isFirstPayment
     })
+    setBreakdownConfig(null) // Close breakdown modal
   }
 
   const handlePaymentSuccess = async (reference: string) => {
@@ -143,75 +147,71 @@ export default function ParentDashboard() {
     }
   }
 
-  const handleRenewTerm = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!renewConfig || !currentUserId) return
-    setIsRenewing(true)
-
-    try {
-      const { data: feeConfig, error: feeError } = await supabase
-        .from('class_fees')
-        .select('parent_total_fee, mid_term_date')
-        .eq('school_name', renewConfig.schoolName)
-        .eq('class_name', renewForm.className)
-        .eq('academic_session', renewForm.session)
-        .eq('term', renewForm.term)
-        .single()
-
-      if (feeError || !feeConfig) throw new Error(`School has not added fees for ${renewForm.term} ${renewForm.session} yet. Contact them.`)
-
-      await supabase
-        .from('active_plans')
-        .update({ status: 'Completed' })
-        .eq('student_id', renewConfig.studentId)
-        .neq('status', 'Completed')
-
-      if (renewForm.className !== renewConfig.currentClass) {
-        await supabase.from('students').update({ student_class: renewForm.className }).eq('id', renewConfig.studentId)
-      }
-
-      const uniqueCode = `PT-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
-      
-      const { error: newPlanError } = await supabase
-        .from('active_plans')
-        .insert({
-          student_id: renewConfig.studentId,
-          parent_id: currentUserId,
-          school_id: renewConfig.schoolId,
-          total_fee: Number(feeConfig.parent_total_fee) || 0,
-          amount_paid: 0,
-          next_payment_date: feeConfig.mid_term_date || null,
-          status: 'Pending Verification',
-          clearance_code: uniqueCode,
-          mid_term_cleared: false,
-          payterm_advance: 0,
-          academic_session: renewForm.session,
-          term: renewForm.term
-        } as any)
-
-      if (newPlanError) throw newPlanError
-
-      alert("Child successfully enrolled for the new term! You can now pay the initial deposit.")
-      setRenewConfig(null)
-      fetchDashboardData()
-
-    } catch (err: any) {
-      alert(`Renewal Failed: ${err.message}`)
-    } finally {
-      setIsRenewing(false)
-    }
-  }
-
-  const toggleHistory = (id: string) => {
-    setExpandedHistoryId(prev => prev === id ? null : id)
-  }
-
   if (loading) return <div className="p-10 text-center text-sm font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Loading Dashboard...</div>
 
   return (
     <div className="w-full max-w-6xl mx-auto p-4 sm:p-6 lg:p-10 animate-in fade-in pb-24">
       
-      {/* PAYSTACK MODAL */}
+      {/* 1. NEW PAYMENT BREAKDOWN MODAL */}
+      {breakdownConfig && (() => {
+        const { fee: serviceFee, base: baseTuition } = getFeeBreakdown(Number(breakdownConfig.plan.total_fee))
+        const depositAmount = baseTuition * 0.60
+        const balanceAmount = baseTuition * 0.40
+        const totalDueToday = breakdownConfig.isFirstPayment ? (depositAmount + serviceFee) : balanceAmount
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a1128]/80 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 mx-auto">
+              <div className="bg-gray-50 border-b border-gray-200 p-5">
+                <h2 className="text-lg font-bold text-[#0a1128] tracking-tight mb-1">Payment Breakdown</h2>
+                <p className="text-xs text-gray-500">{breakdownConfig.child.full_name} • {breakdownConfig.child.student_class}</p>
+              </div>
+              
+              <div className="p-5 space-y-4">
+                {breakdownConfig.isFirstPayment ? (
+                  <>
+                    <div className="flex justify-between items-center text-sm pb-2 border-b border-gray-100">
+                      <span className="text-gray-600 font-medium">School Tuition</span>
+                      <span className="font-bold text-[#0a1128]">₦{baseTuition.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600 font-medium">Initial Deposit (60%)</span>
+                      <span className="font-bold text-[#0a1128]">₦{depositAmount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600 font-medium">Platform Service Fee</span>
+                      <span className="font-bold text-[#0a1128]">₦{serviceFee.toLocaleString()}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600 font-medium">Final Balance (40%)</span>
+                      <span className="font-bold text-[#0a1128]">₦{balanceAmount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600 font-medium">Platform Service Fee</span>
+                      <span className="font-bold text-gray-400">Paid upfront</span>
+                    </div>
+                  </>
+                )}
+                
+                <div className="border-t border-gray-200 pt-3 flex justify-between items-center">
+                  <span className="text-sm font-bold text-[#0a1128] uppercase tracking-wide">Total Due Today</span>
+                  <span className="text-xl font-black text-blue-600">₦{totalDueToday.toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className="p-4 bg-gray-50 flex gap-2 border-t border-gray-200">
+                <button onClick={() => setBreakdownConfig(null)} className="flex-1 py-3 text-xs font-bold text-gray-600 bg-white border border-gray-300 rounded-xl hover:bg-gray-100 transition-colors">Cancel</button>
+                <button onClick={() => triggerPayment(totalDueToday)} className="flex-[2] py-3 text-xs font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-sm">Proceed to Checkout ➔</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* 2. EXTERNALLY MANAGED MODALS */}
       {paystackConfig && (
         <DummyPaystack
           isOpen={paystackConfig.isOpen} onClose={() => setPaystackConfig(null)} onSuccess={handlePaymentSuccess}
@@ -220,84 +220,20 @@ export default function ParentDashboard() {
         />
       )}
 
-      {/* SMART RENEWAL MODAL */}
       {renewConfig && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a1128]/80 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 mx-auto p-6">
-            <h2 className="text-xl font-extrabold text-[#0a1128] mb-1 tracking-tight">Start New Term</h2>
-            <p className="text-sm text-gray-500 mb-6">Enroll your child for the upcoming academic period.</p>
-            
-            <form onSubmit={handleRenewTerm} className="space-y-4">
-              
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Next Session</label>
-                  <select disabled required value={renewForm.session} className="w-full bg-gray-100 border border-gray-200 p-3 rounded-xl text-sm font-bold text-gray-600 outline-none opacity-80 cursor-not-allowed appearance-none">
-                    <option value="" disabled>Select Year</option>
-                    <option value={renewForm.session}>{renewForm.session}</option>
-                  </select>
-                </div>
-                <div className="flex-1">
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Next Term</label>
-                  <select disabled required value={renewForm.term} className="w-full bg-gray-100 border border-gray-200 p-3 rounded-xl text-sm font-bold text-gray-600 outline-none opacity-80 cursor-not-allowed appearance-none">
-                    <option value="" disabled>Select Term</option>
-                    <option value={renewForm.term}>{renewForm.term}</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Child's Class</label>
-                <select required value={renewForm.className} onChange={e => setRenewForm({...renewForm, className: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-600">
-                  <option value="" disabled>Select Class</option>
-                  {classList.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <p className="text-[10px] text-gray-400 mt-1.5">* Change this only if your child has been promoted.</p>
-              </div>
-
-              <div className="flex gap-3 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setRenewConfig(null)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={isRenewing || !renewForm.session || !renewForm.term} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 disabled:opacity-50 flex justify-center items-center active:scale-95 transition-transform">
-                  {isRenewing ? 'Enrolling...' : 'Confirm Enrollment'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <RenewalModal 
+          config={renewConfig} 
+          currentUserId={currentUserId} 
+          onClose={() => setRenewConfig(null)} 
+          onSuccess={() => { setRenewConfig(null); fetchDashboardData(); }} 
+        />
       )}
 
-      {/* RECEIPT MODAL */}
       {activeReceipt && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0a1128]/80 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-[300px] sm:max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 mx-auto">
-            <div className="bg-[#0a1128] p-4 text-center text-white border-b-4 border-blue-600">
-              <h2 className="text-base sm:text-lg font-bold tracking-widest uppercase">PayTerm</h2>
-              <p className="text-[9px] text-blue-200 mt-0.5 uppercase tracking-wider">Official Receipt</p>
-            </div>
-            <div className="p-4 sm:p-5 space-y-3 bg-gray-50/50">
-              <div className="flex justify-between border-b border-gray-200 pb-2">
-                <span className="text-gray-500 text-xs font-medium">Receipt No.</span>
-                <span className="font-bold font-mono text-gray-900 text-xs">{activeReceipt.receipt_number}</span>
-              </div>
-              <div className="flex justify-between border-b border-gray-200 pb-2">
-                <span className="text-gray-500 text-xs font-medium">Date</span>
-                <span className="font-bold text-gray-900 text-xs">{new Date(activeReceipt.payment_date).toLocaleDateString()}</span>
-              </div>
-              <div className="flex justify-between border-b border-gray-200 pb-2">
-                <span className="text-gray-500 text-xs font-medium">Amount Paid</span>
-                <span className="font-bold text-green-600 text-sm sm:text-base tracking-tight">₦{Number(activeReceipt.amount).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-500 text-xs font-medium">Status</span>
-                <span className="font-bold text-green-700 uppercase text-[9px] tracking-wider px-2 py-1 bg-green-100 rounded border border-green-200">{activeReceipt.status || 'Cleared'}</span>
-              </div>
-            </div>
-            <div className="p-3 bg-white border-t border-gray-200 flex gap-2">
-              <button onClick={() => setActiveReceipt(null)} className="flex-1 py-2 text-xs font-bold text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100">Close</button>
-              <button onClick={() => window.print()} className="flex-1 py-2 text-xs font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700">Print PDF</button>
-            </div>
-          </div>
-        </div>
+        <ReceiptModal 
+          receipt={activeReceipt} 
+          onClose={() => setActiveReceipt(null)} 
+        />
       )}
 
       {/* HEADER SECTION */}
@@ -333,133 +269,17 @@ export default function ParentDashboard() {
             </Link>
           </div>
         ) : (
-          childrenData.map((child) => {
-            const plan = child.active_plans?.[0] 
-            const isPending = child.enrollment_status === 'Pending Verification'
-            const isEscrowFunded = isPending && plan && plan.amount_paid > 0
-            
-            const isFirstPayment = plan?.amount_paid === 0
-            const isFullyPaid = plan && plan.total_fee > 0 && plan.amount_paid >= plan.total_fee
-            
-            const progressPercentage = plan && plan.total_fee > 0 
-              ? Math.min(100, Math.round((Number(plan.amount_paid) / Number(plan.total_fee)) * 100)) 
-              : 0
-
-            const allHistory = child.active_plans?.flatMap((p: any) => p.payment_history || []) || []
-            const sortedHistory = allHistory.sort((a: any, b: any) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime())
-            const isHistoryExpanded = expandedHistoryId === child.id
-
-            return (
-              <div key={child.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 md:p-6 flex flex-col transition-all">
-                
-                <div className="flex justify-between items-start mb-1">
-                  <h3 className="text-lg font-bold text-[#0a1128] tracking-tight truncate pr-4">{child.full_name}</h3>
-                  <div className="shrink-0">
-                    {isFullyPaid ? (
-                      <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2.5 py-1 border border-green-100 rounded uppercase tracking-wider">Cleared</span>
-                    ) : isEscrowFunded ? (
-                      <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 border border-blue-100 rounded uppercase tracking-wider">Verifying</span>
-                    ) : (
-                      <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2.5 py-1 border border-orange-100 rounded uppercase tracking-wider">Active</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* UPDATED: Subtitle & Prominent Term Badge */}
-                <div className="mb-6">
-                  <p className="text-xs text-gray-500 truncate">
-                    {child.student_class ? `${child.student_class} • ` : ''} {child.display_school_name}
-                  </p>
-                  
-                  {plan?.academic_session ? (
-                    <div className="mt-2 inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-md">
-                      <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">
-                        {plan.term} • {plan.academic_session}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="mt-2 inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-md opacity-50">
-                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Legacy Plan</span>
-                    </div>
-                  )}
-                </div>
-
-                {plan && (
-                  <div className="mt-auto">
-                    <div className="flex justify-between text-[11px] font-bold mb-2">
-                      <span className="text-blue-600 uppercase tracking-widest">Paid: ₦{Number(plan.amount_paid).toLocaleString()}</span>
-                      <span className="text-gray-500 uppercase tracking-widest">Total: ₦{Number(plan.total_fee).toLocaleString()}</span>
-                    </div>
-                    
-                    <div className="w-full h-1.5 bg-gray-100 rounded-full mb-5 overflow-hidden">
-                      <div className="h-full bg-blue-600 rounded-full transition-all duration-500 ease-out" style={{ width: `${progressPercentage}%` }}></div>
-                    </div>
-
-                    {isFullyPaid ? (
-                      <div className="flex gap-2">
-                        <div className="flex-1 bg-green-50 text-green-700 py-2.5 rounded-xl text-sm font-bold text-center border border-green-100 flex items-center justify-center">
-                          Fully Paid
-                        </div>
-                        <button 
-                          onClick={() => {
-                            // SMART CALCULATION TRIGGERS HERE
-                            const { nextSession, nextTerm } = calculateNextTerm(plan.academic_session, plan.term)
-                            
-                            setRenewForm({ session: nextSession, term: nextTerm, className: child.student_class })
-                            setRenewConfig({ 
-                              studentId: child.id, schoolId: child.school_id, schoolName: child.display_school_name, currentClass: child.student_class 
-                            })
-                          }}
-                          className="flex-1 bg-[#0a1128] text-white py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-600 transition-colors active:scale-[0.98]"
-                        >
-                          Start New Term
-                        </button>
-                      </div>
-                    ) : isEscrowFunded ? (
-                      <div className="w-full bg-blue-50 text-blue-700 py-3 rounded-xl text-sm font-bold text-center border border-blue-100">
-                        Awaiting School Approval
-                      </div>
-                    ) : (
-                      <button 
-                        onClick={() => triggerPayment(plan, child)}
-                        className="w-full bg-white border-2 border-blue-600 text-blue-600 hover:bg-blue-50 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-[0.98]"
-                      >
-                        {isFirstPayment ? 'Pay 60% Initial Deposit' : 'Pay 40% Balance'}
-                      </button>
-                    )}
-
-                    {sortedHistory && sortedHistory.length > 0 && (
-                      <div className="pt-3 border-t border-gray-100 mt-4">
-                        <button onClick={() => toggleHistory(child.id)} className="w-full flex items-center justify-between text-xs font-bold text-gray-500 hover:text-gray-900 transition-colors">
-                          <span>{isHistoryExpanded ? 'Hide All Transactions' : 'View Transaction History'}</span>
-                          <svg className={`w-4 h-4 transition-transform ${isHistoryExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
-                        </button>
-                        
-                        {isHistoryExpanded && (
-                          <div className="mt-3 space-y-2 animate-in slide-in-from-top-2 duration-200 max-h-48 overflow-y-auto pr-1">
-                            {sortedHistory.map((tx: any) => (
-                              <div key={tx.id} className="flex justify-between items-center p-2.5 rounded-lg bg-gray-50 border border-gray-100">
-                                <div>
-                                  <p className="text-xs font-bold text-gray-900">₦{Number(tx.amount).toLocaleString()}</p>
-                                  <p className="text-[9px] font-medium text-gray-500 uppercase">{new Date(tx.payment_date).toLocaleDateString()}</p>
-                                </div>
-                                <button onClick={() => setActiveReceipt(tx)} className="text-[10px] font-bold text-blue-600 bg-white border border-gray-200 px-3 py-1.5 rounded-md shadow-sm hover:bg-gray-50 active:scale-95">
-                                  Receipt
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )
-          })
+          childrenData.map((child) => (
+            <StudentCard 
+              key={child.id}
+              child={child}
+              expandedHistoryId={expandedHistoryId}
+              onToggleHistory={(id: string) => setExpandedHistoryId(prev => prev === id ? null : id)}
+              onPay={handleShowBreakdown} // Now triggers the breakdown modal first!
+              onRenew={setRenewConfig}
+              onViewReceipt={setActiveReceipt}
+            />
+          ))
         )}
       </div>
     </div>
