@@ -26,14 +26,12 @@ export default function SchoolDashboard() {
     payoutsCleared: 0
   })
 
-  // NEW: Household Grouped State
   const [householdLedger, setHouseholdLedger] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState('All')
 
   const fetchDashboardData = async (idToFetch: string, isMounted: boolean = true) => {
     try {
-      // 1. Fetch School Tier Profile
       const { data: schoolData } = await supabase
         .from('partner_schools')
         .select('*')
@@ -43,7 +41,6 @@ export default function SchoolDashboard() {
       const payoutRate = (schoolData as any)?.tier === 'Tier 2' ? 0.70 : 0.60
       const remainderRate = (schoolData as any)?.tier === 'Tier 2' ? 0.30 : 0.40
 
-      // 2. Fetch only students for THIS school, plus their plans
       const { data: studentData, error } = await supabase
         .from('students')
         .select(`
@@ -61,14 +58,12 @@ export default function SchoolDashboard() {
       let groupedHouseholds: Record<string, any> = {} 
 
       if (studentData && studentData.length > 0) {
-        // 3. Fetch Parent Details securely for the enrolled students
         const parentIds = [...new Set(studentData.map(s => s.parent_id).filter(Boolean))]
         const { data: parentsData } = await supabase
           .from('parents')
           .select('id, full_name, email, phone')
           .in('id', parentIds)
 
-        // 4. Process and Group by Household
         studentData.forEach(student => {
           const plan = student.active_plans?.[0]
           if (!plan) return
@@ -82,10 +77,14 @@ export default function SchoolDashboard() {
           expected += baseTuition
           outstandingTotal += parentOwes
           
+          // Calculate this specific child's cleared tranche
+          let childCleared = 0
           if (amountPaid > 0) {
             const progress = amountPaid / totalInvoice
-            if (progress >= 0.59) cleared += (baseTuition * payoutRate)
-            if (progress >= 0.99) cleared += (baseTuition * remainderRate)
+            if (progress >= 0.59) childCleared += (baseTuition * payoutRate)
+            if (progress >= 0.99) childCleared += (baseTuition * remainderRate)
+            
+            cleared += childCleared // Add to top-level metrics
           }
 
           const pId = student.parent_id
@@ -100,12 +99,17 @@ export default function SchoolDashboard() {
               parent_email: pData?.email || 'No Email',
               children: [],
               total_outstanding: 0,
+              total_paid: 0,         // NEW: Track household total paid
+              total_cleared: 0,      // NEW: Track household total cleared
               statuses: new Set(),
               earliest_due: null,
             }
           }
 
+          // Roll up financial math to the household level
           groupedHouseholds[pId].total_outstanding += parentOwes
+          groupedHouseholds[pId].total_paid += amountPaid
+          groupedHouseholds[pId].total_cleared += childCleared
           groupedHouseholds[pId].statuses.add(plan.status)
 
           if (plan.next_payment_date) {
@@ -120,11 +124,11 @@ export default function SchoolDashboard() {
             className: student.student_class,
             outstanding: parentOwes,
             amountPaid: amountPaid,
-            baseTuition: baseTuition
+            baseTuition: baseTuition,
+            cleared: childCleared
           })
         })
 
-        // 5. Determine Household Health and format array
         let ledgerArr = Object.values(groupedHouseholds).map((g: any) => {
           let hStatus = 'Active'
           if (g.statuses.has('Default')) hStatus = 'Default'
@@ -134,7 +138,6 @@ export default function SchoolDashboard() {
           return { ...g, household_status: hStatus }
         })
 
-        // Sort by highest outstanding balance at the top
         ledgerArr.sort((a: any, b: any) => b.total_outstanding - a.total_outstanding)
 
         if (isMounted) {
@@ -279,7 +282,7 @@ export default function SchoolDashboard() {
         
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50/50 p-4 sm:p-5 border-b border-gray-200 print:bg-white print:border-b-2 print:border-gray-900 print:mb-4">
           <div>
-            <h2 className="text-base font-bold text-[#0a1128] print:text-xl">{targetSchool} - Parent Collections</h2>
+            <h2 className="text-base font-bold text-[#0a1128] print:text-xl">{targetSchool} - Payment Ledger</h2>
             <p className="text-xs text-gray-500 mt-0.5 print:hidden">Household-level transparency for active parent payments.</p>
             <p className="hidden print:block text-xs text-gray-500 mt-1">Generated on: {new Date().toLocaleDateString()}</p>
           </div>
@@ -314,10 +317,10 @@ export default function SchoolDashboard() {
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100 text-[10px] text-gray-500 uppercase tracking-wider print:bg-gray-100 print:text-black">
                 <th className="p-4 font-bold">Household / Contact</th>
-                <th className="p-4 font-bold">Enrolled Students</th>
-                <th className="p-4 font-bold">Health Status</th>
-                <th className="p-4 font-bold text-right print:text-left">Next Due</th>
-                <th className="p-4 font-bold text-right">Household Arrears</th>
+                <th className="p-4 font-bold">Enrolled Breakdowns</th>
+                <th className="p-4 font-bold text-red-600 print:text-black">Total Arrears</th>
+                <th className="p-4 font-bold text-blue-700 print:text-black">Total Paid (Account)</th>
+                <th className="p-4 font-bold text-green-700 print:text-black">Cleared Tranche</th>
                 <th className="p-4 font-bold text-right print:hidden">Action</th>
               </tr>
             </thead>
@@ -337,23 +340,7 @@ export default function SchoolDashboard() {
                       <td className="p-4 align-top">
                         <p className="font-bold text-[#0a1128] text-sm print:text-black">{item.parent_name}</p>
                         <p className="text-[11px] text-gray-500 mt-1 font-mono print:text-gray-700">{item.parent_phone}</p>
-                      </td>
-                      <td className="p-4 align-top">
-                        <div className="space-y-3">
-                          {item.children.map((child: any, idx: number) => (
-                            <div key={idx} className="flex flex-col gap-0.5">
-                              <p className="text-xs font-bold text-gray-800 print:text-black">{child.student_name} <span className="text-gray-400 font-normal">({child.className})</span></p>
-                              {child.outstanding > 0 ? (
-                                <p className="text-[10px] text-red-600 font-mono font-medium print:text-black">Owing: ₦{child.outstanding.toLocaleString()}</p>
-                              ) : (
-                                <p className="text-[10px] text-green-600 font-mono font-medium print:text-black">Cleared</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="p-4 align-top">
-                        <span className={`px-2.5 py-1 rounded text-[9px] font-bold uppercase tracking-wider border inline-block ${
+                        <span className={`mt-2 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border inline-block ${
                           item.household_status === 'Active' ? 'bg-blue-50 text-blue-700 border-blue-200 print:border-none print:p-0 print:bg-transparent print:text-black' : 
                           item.household_status === 'Late' ? 'bg-orange-50 text-orange-700 border-orange-200 print:border-none print:p-0 print:bg-transparent print:text-black' : 
                           'bg-red-50 text-red-700 border-red-200 print:border-none print:p-0 print:bg-transparent print:text-black'
@@ -361,12 +348,30 @@ export default function SchoolDashboard() {
                           {item.household_status}
                         </span>
                       </td>
-                      <td className="p-4 text-right print:text-left text-xs text-gray-600 font-medium align-top print:text-black">
-                        {item.earliest_due ? new Date(item.earliest_due).toLocaleDateString('en-GB') : 'N/A'}
+                      
+                      <td className="p-4 align-top">
+                        <div className="space-y-3">
+                          {item.children.map((child: any, idx: number) => (
+                            <div key={idx} className="flex flex-col gap-0.5">
+                              <p className="text-xs font-bold text-gray-800 print:text-black">{child.student_name} <span className="text-gray-400 font-normal">({child.className})</span></p>
+                              <p className="text-[10px] text-gray-500 font-medium">Base Fee: ₦{child.baseTuition.toLocaleString()}</p>
+                            </div>
+                          ))}
+                        </div>
                       </td>
-                      <td className="p-4 text-right font-bold text-[#0a1128] font-mono text-sm align-top print:text-black">
+                      
+                      <td className="p-4 font-bold text-red-600 font-mono text-sm align-top print:text-black">
                         ₦{item.total_outstanding.toLocaleString()}
                       </td>
+                      
+                      <td className="p-4 font-bold text-blue-600 font-mono text-sm align-top print:text-black">
+                        ₦{item.total_paid.toLocaleString()}
+                      </td>
+
+                      <td className="p-4 font-bold text-green-700 font-mono text-sm align-top print:text-black">
+                        ₦{item.total_cleared.toLocaleString()}
+                      </td>
+
                       <td className="p-4 text-right align-top print:hidden">
                         <button 
                           onClick={() => handleNudge(item.parent_name, item.parent_phone, item.total_outstanding)}
