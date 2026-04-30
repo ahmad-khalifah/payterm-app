@@ -3,32 +3,35 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-// FIX 1: Guaranteed absolute import path so it never silently crashes
 import { supabase } from '@/lib/supabase' 
+
+// --- NEW LUCIDE ICONS ---
+import { 
+  LayoutDashboard, Users, Landmark, Wallet, 
+  BarChart3, Settings, LogOut, Menu, X 
+} from 'lucide-react'
 
 export default function SchoolSidebar() {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
+  // Mapped specific icons to each route
   const menuItems = [
-    { name: 'Dashboard', href: '/school' },
-    { name: 'Students & Verification', href: '/school/students' },
-    { name: 'Fee Setup', href: '/school/fees' },
-    { name: 'Payouts & Withdrawals', href: '/school/payouts' },
-    { name: 'Reports', href: '/school/reports' },
-    { name: 'Settings', href: '/school/settings' },
+    { name: 'Dashboard', href: '/school', icon: LayoutDashboard },
+    { name: 'Students & Verification', href: '/school/students', icon: Users },
+    { name: 'Fee Setup', href: '/school/fees', icon: Landmark },
+    { name: 'Payouts & Withdrawals', href: '/school/payouts', icon: Wallet },
+    { name: 'Reports', href: '/school/reports', icon: BarChart3 },
+    { name: 'Settings', href: '/school/settings', icon: Settings },
   ]
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
     try {
       await supabase.auth.signOut()
-      
-      // FIX 2: Force a hard browser redirect instead of a soft Next.js route.
-      // This guarantees the local cache is wiped clean.
+      // Force a hard browser redirect instead of a soft Next.js route to wipe local cache
       window.location.href = '/school-login'
-      
     } catch (error) {
       console.error('Error logging out:', error)
       setIsLoggingOut(false)
@@ -38,64 +41,61 @@ export default function SchoolSidebar() {
   return (
     <>
       {/* MOBILE TOP NAVIGATION BAR */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-[#0a1128] text-white flex justify-between items-center px-4 z-50 shadow-md">
-        <h2 className="text-lg font-extrabold tracking-tight">
-          <span className="text-white">PayTerm</span> <span className="text-blue-500">Schools</span>
-        </h2>
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-[#0a1128] text-white flex justify-between items-center px-4 z-50 shadow-md print:hidden">
+        <Link href="/school" className="text-lg font-extrabold tracking-tight">
+          <span className="text-white">Pay</span><span className="text-blue-500">Term</span> <span className="font-medium text-gray-300 ml-1 text-sm">Schools</span>
+        </Link>
         <button 
           onClick={() => setIsOpen(!isOpen)} 
-          className="p-2 -mr-2 focus:outline-none text-gray-300 hover:text-white transition-colors"
+          className="p-2 -mr-2 focus:outline-none text-gray-300 hover:text-white active:scale-95 transition-all"
           aria-label="Toggle Menu"
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            {isOpen ? (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-            ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" />
-            )}
-          </svg>
+          {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
       </div>
   
       {/* MOBILE OVERLAY */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-[#0a1128]/60 backdrop-blur-sm z-40 md:hidden transition-opacity"
+          className="fixed inset-0 bg-[#0a1128]/60 backdrop-blur-sm z-40 md:hidden transition-opacity print:hidden"
           onClick={() => setIsOpen(false)}
         />
       )}
   
       {/* THE SIDEBAR */}
       <div className={`
-        fixed inset-y-0 left-0 z-50 w-64 md:w-60 bg-[#0a1128] text-white flex flex-col h-full
-        transform transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none
+        fixed inset-y-0 left-0 z-50 w-72 md:w-64 bg-[#0a1128] text-white flex flex-col h-full
+        transform transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none print:hidden
         md:relative md:translate-x-0
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* DESKTOP LOGO */}
-        <div className="p-5 hidden md:block border-b border-white/5">
-          <h2 className="text-xl font-extrabold tracking-tight">
-            <span className="text-white">PayTerm</span> <span className="text-blue-500">Schools</span>
-          </h2>
+        <div className="p-6 hidden md:block border-b border-white/5">
+          <Link href="/school" className="text-2xl font-extrabold tracking-tight block">
+            <span className="text-white">Pay</span><span className="text-blue-500">Term</span>
+            <div className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-0.5">School Portal</div>
+          </Link>
         </div>
         
         {/* NAVIGATION LINKS */}
-        <nav className="flex-1 px-3 py-6 space-y-1.5 mt-14 md:mt-0 overflow-y-auto">
+        <nav className="flex-1 px-4 py-8 space-y-2 mt-14 md:mt-0 overflow-y-auto">
           {menuItems.map((item) => {
             const isActive = pathname === item.href
+            const Icon = item.icon
             return (
               <Link
                 key={item.name}
                 href={item.href}
                 onClick={() => setIsOpen(false)}
                 className={`
-                  block px-4 py-3 rounded-xl text-sm font-bold transition-all active:scale-[0.98]
+                  flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold transition-all active:scale-[0.98]
                   ${isActive 
-                    ? 'bg-blue-600 text-white shadow-sm' 
-                    : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                    ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-900/20' 
+                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
                   }
                 `}
               >
+                <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-gray-500'}`} />
                 {item.name}
               </Link>
             )
@@ -103,15 +103,13 @@ export default function SchoolSidebar() {
         </nav>
   
         {/* SECURE LOGOUT BUTTON */}
-        <div className="p-4 border-t border-white/5 pb-8 md:pb-4">
+        <div className="p-4 border-t border-white/5 pb-8 md:pb-6">
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded-xl transition-colors disabled:opacity-50 active:scale-95"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3.5 text-sm font-bold text-gray-400 hover:bg-red-500/10 hover:text-red-400 rounded-xl transition-colors disabled:opacity-50 active:scale-95"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
+            <LogOut className="w-4 h-4" />
             {isLoggingOut ? 'Logging out...' : 'Sign Out'}
           </button>
         </div>

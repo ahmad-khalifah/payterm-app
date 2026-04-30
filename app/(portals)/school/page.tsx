@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { 
   Building2, AlertCircle, CheckCircle2, Users, Search, 
   Filter, Printer, BellRing, User, Phone, GraduationCap, 
-  Wallet, ChevronRight
+  Wallet, ChevronRight, ChevronDown, ChevronUp
 } from 'lucide-react'
 
 // --- UNIVERSAL PRICING ENGINE ---
@@ -35,6 +35,18 @@ export default function SchoolDashboard() {
   const [householdLedger, setHouseholdLedger] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState('All')
+  
+  // NEW: Track which households are expanded to show all children
+  const [expandedHouseholds, setExpandedHouseholds] = useState<Set<string>>(new Set())
+
+  const toggleHousehold = (parentId: string) => {
+    setExpandedHouseholds(prev => {
+      const next = new Set(prev)
+      if (next.has(parentId)) next.delete(parentId)
+      else next.add(parentId)
+      return next
+    })
+  }
 
   const fetchDashboardData = async (idToFetch: string, isMounted: boolean = true) => {
     try {
@@ -344,7 +356,7 @@ export default function SchoolDashboard() {
               <thead>
                 <tr className="bg-gray-50/80 border-b border-gray-100 text-[10px] text-gray-500 uppercase tracking-widest font-bold print:bg-gray-100 print:text-black">
                   <th className="p-5">Household / Contact</th>
-                  <th className="p-5">Enrolled Breakdowns</th>
+                  <th className="p-5">Child Breakdowns</th>
                   <th className="p-5 text-red-600 print:text-black">Total Arrears</th>
                   <th className="p-5 text-blue-700 print:text-black">Total Paid (Account)</th>
                   <th className="p-5 text-green-700 print:text-black">Cleared Tranche</th>
@@ -365,6 +377,11 @@ export default function SchoolDashboard() {
                 ) : (
                   filteredLedger.map((item) => {
                     const isCritical = item.household_status === 'Default' || item.household_status === 'Late'
+                    const isExpanded = expandedHouseholds.has(item.parent_id)
+                    
+                    // Progressive disclosure logic
+                    const visibleChildren = isExpanded ? item.children : item.children.slice(0, 1)
+                    const hiddenCount = item.children.length - 1
                     
                     return (
                       <tr key={item.parent_id} className={`hover:bg-gray-50/50 transition-colors group ${isCritical ? 'bg-red-50/20' : ''}`}>
@@ -388,17 +405,39 @@ export default function SchoolDashboard() {
                           </span>
                         </td>
                         
-                        <td className="p-5 align-top">
-                          <div className="space-y-4">
-                            {item.children.map((child: any, idx: number) => (
-                              <div key={idx} className="flex flex-col gap-1">
-                                <p className="text-xs font-bold text-gray-800 flex items-center gap-1.5 print:text-black">
+                        <td className="p-5 align-top min-w-[280px]">
+                          <div className="space-y-3">
+                            {visibleChildren.map((child: any, idx: number) => (
+                              <div key={idx} className="flex flex-col gap-1.5 p-3 bg-white border border-gray-100 rounded-xl shadow-sm transition-all">
+                                <p className="text-[11px] font-bold text-[#0a1128] flex items-center gap-1.5 print:text-black">
                                   <GraduationCap className="w-3.5 h-3.5 text-gray-400" />
                                   {child.student_name} <span className="text-gray-400 font-medium">({child.className})</span>
                                 </p>
-                                <p className="text-[11px] text-gray-500 font-medium pl-5">Base Fee: ₦{child.baseTuition.toLocaleString()}</p>
+                                <div className="pl-5 flex items-center gap-2 text-[10px] font-bold flex-wrap">
+                                  <span className="text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">Fee: ₦{child.baseTuition.toLocaleString()}</span>
+                                  <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">Paid: ₦{child.amountPaid.toLocaleString()}</span>
+                                  {child.outstanding > 0 ? (
+                                    <span className="text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-100">Owes: ₦{child.outstanding.toLocaleString()}</span>
+                                  ) : (
+                                    <span className="text-green-600 bg-green-50 px-1.5 py-0.5 rounded border border-green-100">Cleared</span>
+                                  )}
+                                </div>
                               </div>
                             ))}
+
+                            {/* Show More / Show Less Toggle Button */}
+                            {item.children.length > 1 && (
+                              <button 
+                                onClick={() => toggleHousehold(item.parent_id)}
+                                className="flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 transition-colors pl-1 pt-1 print:hidden"
+                              >
+                                {isExpanded ? (
+                                  <><ChevronUp className="w-3.5 h-3.5" /> Show less</>
+                                ) : (
+                                  <><ChevronDown className="w-3.5 h-3.5" /> +{hiddenCount} more student{hiddenCount !== 1 ? 's' : ''}</>
+                                )}
+                              </button>
+                            )}
                           </div>
                         </td>
                         

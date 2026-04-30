@@ -1,6 +1,7 @@
 'use client'
 
 import { jsPDF } from 'jspdf'
+import { Download, CheckCircle2, Clock, AlertCircle, FileX, Landmark, ReceiptText } from 'lucide-react'
 
 export default function PayoutLedger({ withdrawalHistory }: { withdrawalHistory: any[] }) {
   
@@ -70,63 +71,76 @@ export default function PayoutLedger({ withdrawalHistory }: { withdrawalHistory:
   }
 
   return (
-    <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col h-fit">
-      <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-        <h3 className="text-lg font-bold text-[#0a1128]">Payout Ledger</h3>
-        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider bg-white px-3 py-1.5 rounded-full border border-gray-200 shadow-sm">
+    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col h-full">
+      <div className="p-6 border-b border-gray-100 bg-white flex justify-between items-center">
+        <h3 className="text-lg font-bold text-[#0a1128] flex items-center gap-2">
+          <ReceiptText className="w-5 h-5 text-blue-600" />
+          Payout Ledger
+        </h3>
+        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50 px-3 py-1.5 rounded-md border border-gray-200">
           {withdrawalHistory.length} Records
         </span>
       </div>
       
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto flex-1">
         {withdrawalHistory.length === 0 ? (
-          <div className="p-12 text-center flex flex-col items-center justify-center">
-            <p className="text-[#0a1128] font-bold mb-1.5">No withdrawals yet.</p>
-            <p className="text-xs text-gray-500 font-medium">Your request history will appear here.</p>
+          <div className="p-16 text-center flex flex-col items-center justify-center h-full">
+            <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 mb-4">
+              <FileX className="w-8 h-8" />
+            </div>
+            <p className="text-[#0a1128] font-bold text-lg mb-1">No withdrawals yet.</p>
+            <p className="text-sm text-gray-500 font-medium max-w-xs">Your settlement request history and receipts will appear here.</p>
           </div>
         ) : (
-          <table className="w-full text-left text-sm border-collapse">
-            <thead className="bg-gray-50/50 border-b border-gray-200 text-[#0a1128]">
+          <table className="w-full text-left text-sm border-collapse whitespace-nowrap">
+            <thead className="bg-gray-50/80 border-b border-gray-100 text-[10px] text-gray-500 uppercase tracking-widest font-bold">
               <tr>
-                <th className="p-5 font-bold uppercase tracking-wide text-xs">Date</th>
-                <th className="p-5 font-bold uppercase tracking-wide text-xs">Amount</th>
-                <th className="p-5 font-bold uppercase tracking-wide text-xs">Destination</th>
-                <th className="p-5 font-bold uppercase tracking-wide text-xs">Status</th>
-                <th className="p-5 font-bold uppercase tracking-wide text-xs text-right">Receipt</th>
+                <th className="p-5">Date</th>
+                <th className="p-5">Amount</th>
+                <th className="p-5">Destination</th>
+                <th className="p-5">Status</th>
+                <th className="p-5 text-right">Receipt</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-50">
               {withdrawalHistory.map((req: any) => (
-                <tr key={req.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="p-5 text-gray-600 font-medium">
+                <tr key={req.id} className="hover:bg-gray-50/50 transition-colors group">
+                  <td className="p-5 text-gray-500 font-bold text-xs uppercase tracking-wider">
                     {new Date(req.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </td>
-                  <td className="p-5 font-bold text-[#0a1128] font-mono text-base">
-                    ₦{Number(req.amount).toLocaleString()}.00
+                  <td className="p-5 font-black text-[#0a1128] font-mono text-base tracking-tight">
+                    ₦{Number(req.amount).toLocaleString()}
                   </td>
                   <td className="p-5">
-                    <p className="text-[#0a1128] font-bold">{req.bank_name}</p>
-                    <p className="text-xs text-gray-500 font-mono mt-0.5">{req.account_number}</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Landmark className="w-3.5 h-3.5 text-gray-400" />
+                      <p className="text-[#0a1128] font-bold text-sm">{req.bank_name}</p>
+                    </div>
+                    <p className="text-xs text-gray-500 font-mono pl-5">{req.account_number}</p>
                   </td>
                   <td className="p-5">
-                    <span className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border ${
                       req.status === 'Pending' ? 'bg-orange-50 text-orange-700 border-orange-200' : 
                       req.status === 'Paid' || req.status === 'Approved' ? 'bg-green-50 text-green-700 border-green-200' : 
                       'bg-red-50 text-red-700 border-red-200'
                     }`}>
+                      {req.status === 'Pending' && <Clock className="w-3 h-3" />}
+                      {(req.status === 'Paid' || req.status === 'Approved') && <CheckCircle2 className="w-3 h-3" />}
+                      {(req.status === 'Rejected' || req.status === 'Failed') && <AlertCircle className="w-3 h-3" />}
                       {req.status}
                     </span>
                   </td>
                   <td className="p-5 text-right">
-                    {req.bank_reference ? (
+                    {req.bank_reference || req.status === 'Paid' || req.status === 'Approved' ? (
                       <button 
                         onClick={() => handleDownloadReceipt(req)} 
-                        className="text-blue-600 font-bold hover:text-blue-700 text-xs transition-colors bg-blue-50 px-3 py-1.5 rounded-md border border-blue-100 shadow-sm"
+                        className="bg-white border border-gray-200 text-[#0a1128] px-4 py-2 rounded-xl text-[11px] font-bold hover:bg-gray-50 hover:text-blue-600 transition-all shadow-sm active:scale-95 inline-flex items-center gap-1.5 opacity-80 group-hover:opacity-100"
                       >
-                        Download PDF
+                        <Download className="w-3.5 h-3.5" />
+                        PDF
                       </button>
                     ) : (
-                      <span className="text-gray-400 italic text-xs font-medium">Awaiting processing</span>
+                      <span className="text-gray-400 italic text-[11px] font-medium bg-gray-50 px-3 py-1.5 rounded-md border border-gray-100">Processing</span>
                     )}
                   </td>
                 </tr>

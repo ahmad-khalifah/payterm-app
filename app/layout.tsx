@@ -1,14 +1,10 @@
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
 
-// 1. ADD THESE TWO LINES TO KILL GLOBAL CACHING
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
-
 const jakarta = Plus_Jakarta_Sans({ 
   subsets: ['latin'],
   display: 'swap',
-  variable: '--font-jakarta', // This variable name must match the Tailwind config
+  variable: '--font-jakarta', 
 })
 
 export const metadata = {
@@ -22,10 +18,21 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    // The variable is injected here
     <html lang="en" className={`${jakarta.variable}`}>
-      <body className="font-sans antialiased text-gray-900 bg-gray-50">
-        {children}
+      <body className="font-sans antialiased text-[#0a1128] bg-gray-50 relative min-h-screen">
+        
+        {/* GLOBAL NOISE LAYER */}
+        {/* This applies the premium fintech texture to every page automatically */}
+        <div 
+          className="pointer-events-none fixed inset-0 z-0 opacity-[0.03] mix-blend-overlay print:hidden"
+          style={{ backgroundImage: "url('/noise.png')" }}
+        ></div>
+
+        {/* Ensure children sit above the noise layer */}
+        <div className="relative z-10 h-full">
+          {children}
+        </div>
+
       </body>
     </html>
   )

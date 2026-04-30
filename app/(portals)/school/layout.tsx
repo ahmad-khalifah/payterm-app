@@ -6,8 +6,10 @@ import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import '../../globals.css'
 
-// --- LUCIDE ICONS ---
-import { Home, Users, Wallet, Settings, LifeBuoy, LogOut, Menu, X } from 'lucide-react'
+import { 
+  LayoutDashboard, Users, Landmark, Wallet, 
+  BarChart3, Settings, LogOut, Menu, X 
+} from 'lucide-react'
 
 export default function SchoolLayout({
   children,
@@ -19,17 +21,18 @@ export default function SchoolLayout({
   const router = useRouter()
 
   const navItems = [
-    { name: 'Home', href: '/school', icon: Home },
-    { name: 'Student Roster', href: '/school/students', icon: Users },
-    { name: 'Treasury & Payouts', href: '/school/payouts', icon: Wallet },
+    { name: 'Dashboard', href: '/school', icon: LayoutDashboard },
+    { name: 'Students & Verification', href: '/school/students', icon: Users },
+    { name: 'Fee Setup', href: '/school/fees', icon: Landmark },
+    { name: 'Payouts & Withdrawals', href: '/school/payouts', icon: Wallet },
+    { name: 'Reports', href: '/school/reports', icon: BarChart3 },
     { name: 'Settings', href: '/school/settings', icon: Settings },
-    { name: 'Support', href: '/school/support', icon: LifeBuoy },
   ]
 
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut()
-      router.push('/school-login')
+      window.location.href = '/school-login'
     } catch (error) {
       console.error('Error logging out:', error)
     }
@@ -38,7 +41,6 @@ export default function SchoolLayout({
   return (
     <div className="flex h-screen w-full bg-gray-50 font-sans overflow-hidden text-[#0a1128] selection:bg-blue-100 selection:text-blue-900 relative">
       
-      {/* 🚀 THE NOISE LAYER 🚀 */}
       <div 
         className="pointer-events-none fixed inset-0 z-0 opacity-[0.03] mix-blend-overlay print:hidden"
         style={{ backgroundImage: "url('/noise.png')" }}
@@ -47,7 +49,7 @@ export default function SchoolLayout({
       {/* MOBILE TOP NAVIGATION BAR */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-[#0a1128] text-white flex items-center justify-between px-4 z-50 shadow-md print:hidden">
         <Link href="/school" className="text-lg font-extrabold tracking-tight">
-          <span className="text-white">PayTerm</span> <span className="text-blue-500">School</span>
+          <span className="text-white">PayTerm</span> <span className="text-blue-500">Schools</span>
         </Link>
         <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 -mr-2 text-gray-300 active:scale-95 transition-transform hover:text-white">
           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -67,8 +69,8 @@ export default function SchoolLayout({
         
         {/* DESKTOP LOGO */}
         <div className="p-6 hidden md:block border-b border-white/5">
-          <Link href="/school" className="text-xl font-extrabold tracking-tight block">
-            <span className="text-white">PayTerm</span> <span className="text-blue-500">School</span>
+          <Link href="/school" className="text-2xl font-extrabold tracking-tight block">
+            <span className="text-white">PayTerm</span> <span className="text-blue-500">Schools</span>
           </Link>
         </div>
         
