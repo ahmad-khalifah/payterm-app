@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../../lib/supabase'
+import { RefreshCcw, User, MessageSquare, ChevronDown, Send } from 'lucide-react'
 
 export default function RestructurePage() {
   const [loading, setLoading] = useState(true)
@@ -16,7 +17,6 @@ export default function RestructurePage() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        // FIX: Changed first_name/last_name to full_name
         const { data, error } = await supabase
           .from('students')
           .select('id, full_name, student_class') 
@@ -47,8 +47,6 @@ export default function RestructurePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("Not authenticated")
 
-      // Sending the restructuring request to the database
-      // Sending the restructuring request to the database
       // @ts-ignore: Temporary bypass until support_tickets table is added to Supabase
       const { error } = await supabase
         .from('support_tickets' as any) 
@@ -74,43 +72,58 @@ export default function RestructurePage() {
   if (loading) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest h-full flex items-center justify-center animate-pulse">Loading...</div>
 
   return (
-    <div className="w-full max-w-xl mx-auto md:p-4 lg:p-8 animate-in fade-in pb-20">
-      <div className="p-4 md:p-0 mb-4">
-        <h1 className="text-2xl font-extrabold text-[#0a1128] mb-1 tracking-tight">Adjust Plan</h1>
-        <p className="text-gray-500 text-sm">Need to pause or change schools? Let us know.</p>
+    <div className="w-full max-w-2xl mx-auto md:p-4 lg:p-8 animate-in fade-in pb-20">
+      
+      {/* HEADER */}
+      <div className="p-4 md:p-0 mb-8">
+        <h1 className="text-3xl font-extrabold text-[#0a1128] mb-2 tracking-tight flex items-center gap-3">
+          <RefreshCcw className="w-7 h-7 text-blue-600" />
+          Adjust Plan
+        </h1>
+        <p className="text-gray-500 font-medium text-sm">Need to pause a payment or register a school transfer? Let us know.</p>
       </div>
 
-      <div className="bg-white md:rounded-2xl border-y md:border border-gray-200 md:shadow-sm overflow-hidden">
-        <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4">
+      <div className="bg-white md:rounded-3xl border-y md:border border-gray-100 shadow-xl shadow-blue-900/5 overflow-hidden relative">
+        {/* Subtle background glow */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50/50 rounded-full blur-3xl pointer-events-none -mt-20 -mr-20"></div>
+
+        <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-6 relative z-10">
+          
           <div>
-            <label className="block text-xs font-bold text-[#0a1128] mb-1.5 uppercase tracking-wide">Select Child</label>
-            <select 
-              value={selectedStudent} 
-              onChange={(e) => setSelectedStudent(e.target.value)}
-              className="w-full border border-gray-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 bg-gray-50 focus:bg-white text-[#0a1128] font-bold transition-all shadow-sm"
-            >
-              {students.length === 0 ? (
-                <option value="" disabled>No students linked</option>
-              ) : (
-                students.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {/* FIX: Now uses s.full_name safely */}
-                    {s.full_name} {s.student_class ? `(${s.student_class})` : ''}
-                  </option>
-                ))
-              )}
-            </select>
+            <label className="block text-[11px] font-bold text-gray-500 mb-2 uppercase tracking-wide flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5" /> Select Child
+            </label>
+            <div className="relative">
+              <select 
+                value={selectedStudent} 
+                onChange={(e) => setSelectedStudent(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 p-4 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white focus:border-blue-600 text-[#0a1128] font-bold transition-all appearance-none shadow-sm cursor-pointer"
+              >
+                {students.length === 0 ? (
+                  <option value="" disabled>No students linked</option>
+                ) : (
+                  students.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.full_name} {s.student_class ? `(${s.student_class})` : ''}
+                    </option>
+                  ))
+                )}
+              </select>
+              <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            </div>
           </div>
           
           <div>
-            <label className="block text-xs font-bold text-[#0a1128] mb-1.5 uppercase tracking-wide">What do you need help with?</label>
+            <label className="block text-[11px] font-bold text-gray-500 mb-2 uppercase tracking-wide flex items-center gap-1.5">
+              <MessageSquare className="w-3.5 h-3.5" /> What do you need help with?
+            </label>
             <textarea 
               required 
-              rows={4} 
+              rows={5} 
               value={reason} 
               onChange={(e) => setReason(e.target.value)} 
-              placeholder="e.g. My child is transferring schools next term and I need to pause the payment plan."
-              className="w-full border border-gray-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 bg-gray-50 focus:bg-white text-[#0a1128] font-medium resize-none shadow-sm transition-all"
+              placeholder="e.g. My child is transferring schools next term and I need to pause the auto-debit on my active payment plan."
+              className="w-full bg-gray-50 border border-gray-200 p-4 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white focus:border-blue-600 text-[#0a1128] font-medium resize-none shadow-sm transition-all leading-relaxed"
             ></textarea>
           </div>
           
@@ -118,9 +131,10 @@ export default function RestructurePage() {
             <button 
               type="submit" 
               disabled={isSubmitting || !selectedStudent || !reason.trim()}
-              className="w-full bg-[#0a1128] text-white py-3 rounded-xl text-sm font-bold active:scale-95 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-600"
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white py-4 rounded-xl text-sm font-bold active:scale-95 transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
             >
               {isSubmitting ? 'Sending Request...' : 'Submit Request'}
+              {!isSubmitting && <Send className="w-4 h-4 transform group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />}
             </button>
           </div>
         </form>

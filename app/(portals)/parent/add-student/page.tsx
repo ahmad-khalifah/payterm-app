@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '../../../../lib/supabase'
 import Link from 'next/link'
 import PaymentPreviewBox from './components/PaymentPreviewBox'
+
+// --- NEW LUCIDE ICONS ---
+import { ArrowLeft, User, Building2, CreditCard, AlertCircle, ChevronDown } from 'lucide-react'
 
 export default function AddStudentPage() {
   const router = useRouter()
@@ -24,7 +27,6 @@ export default function AddStudentPage() {
     className: ''
   })
 
-  // 1. Fetch all ACTIVE partner schools and their states
   useEffect(() => {
     const fetchSchools = async () => {
       try {
@@ -45,7 +47,6 @@ export default function AddStudentPage() {
     fetchSchools()
   }, [])
 
-  // 2. Fetch specific classes based on School + Session + Term
   useEffect(() => {
     if (!form.schoolName || !form.session || !form.term) {
       setAvailableClasses([])
@@ -91,7 +92,6 @@ export default function AddStudentPage() {
       const selectedSchool = schools.find(s => s.name === form.schoolName && s.state === form.state)
       if (!selectedSchool || !selectedSchool.id) throw new Error("Could not verify the internal School ID.")
 
-      // 1. Insert the Student Profile (Instantly Active)
       const { data: studentData, error: studentError } = await supabase
         .from('students')
         .insert({
@@ -106,8 +106,6 @@ export default function AddStudentPage() {
 
       if (studentError) throw studentError
 
-      
-      // 2. Generate the Financial Plan (Instantly Active)
       const uniqueCode = `PT-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
       
       const { error: planError } = await supabase
@@ -140,127 +138,182 @@ export default function AddStudentPage() {
   }
 
   const activeClassData = availableClasses.find(c => c.class_name === form.className)
-
   const availableStates = Array.from(new Set(schools.map(s => s.state).filter(Boolean))).sort()
   const filteredSchools = form.state ? schools.filter(s => s.state === form.state) : []
 
   return (
-    <div className="w-full max-w-xl mx-auto md:p-4 lg:p-6 animate-in fade-in pb-20">
+    <div className="w-full max-w-2xl mx-auto p-4 sm:p-6 lg:p-10 animate-in fade-in pb-24">
       
-      <div className="p-4 md:p-0 mb-2 md:mb-5">
-        <Link href="/parent" className="inline-flex items-center gap-2 text-xs font-medium text-gray-600 hover:text-gray-900 bg-white border border-gray-200 px-3 py-1.5 rounded-full shadow-sm transition-all mb-4">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-          Back
+      {/* HEADER */}
+      <div className="mb-8">
+        <Link href="/parent" className="inline-flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-[#0a1128] bg-white border border-gray-200 px-4 py-2 rounded-full shadow-sm transition-all mb-6 active:scale-95">
+          <ArrowLeft className="w-4 h-4" />
+          Back to Dashboard
         </Link>
-        <h1 className="text-2xl font-extrabold text-gray-900 mb-1 tracking-tight">Add Your Child</h1>
-        <p className="text-gray-500 text-sm">Select their school and set up a flexible payment plan.</p>
+        <h1 className="text-3xl font-extrabold text-[#0a1128] mb-2 tracking-tight">Add Your Child</h1>
+        <p className="text-gray-500 font-medium">Select their school and instantly set up a flexible payment plan.</p>
       </div>
   
-      <div className="bg-white md:rounded-2xl md:border md:border-gray-200 md:shadow-lg overflow-hidden border-y border-gray-200">
-        <form onSubmit={handleLinkStudent}>
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-blue-900/5 overflow-hidden relative">
+        {/* Subtle background glow */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50/50 rounded-full blur-3xl pointer-events-none -mt-20 -mr-20"></div>
+
+        <form onSubmit={handleLinkStudent} className="relative z-10">
           
-          {/* Child Details */}
-          <div className="p-4 md:p-6 border-b border-gray-100">
-            <h2 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xs">1</span>
-              Child's Details
+          {/* STEP 1: Child Details */}
+          <div className="p-6 md:p-8 border-b border-gray-50">
+            <h2 className="text-sm font-bold text-gray-900 mb-5 flex items-center gap-3 uppercase tracking-wider">
+              <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shadow-inner">
+                <User className="w-4 h-4" />
+              </div>
+              Step 1: Child's Details
             </h2>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Child's Full Name</label>
-              <input required type="text" placeholder="e.g. John Doe" value={form.fullName} onChange={e => setForm({...form, fullName: e.target.value})} 
-                className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-gray-900 font-medium transition-all" />
+              <label className="block text-[11px] font-bold text-gray-500 mb-2 uppercase tracking-wide">Child's Full Name</label>
+              <input 
+                required 
+                type="text" 
+                placeholder="e.g. John Doe" 
+                value={form.fullName} 
+                onChange={e => setForm({...form, fullName: e.target.value})} 
+                className="w-full bg-gray-50 border border-gray-200 p-4 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white focus:border-blue-600 text-[#0a1128] font-bold transition-all shadow-sm" 
+              />
             </div>
           </div>
   
-          {/* School Info */}
-          <div className="p-4 md:p-6 border-b border-gray-100">
-            <h2 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xs">2</span>
-              School Information
+          {/* STEP 2: School Info */}
+          <div className="p-6 md:p-8 border-b border-gray-50">
+            <h2 className="text-sm font-bold text-gray-900 mb-5 flex items-center gap-3 uppercase tracking-wider">
+              <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shadow-inner">
+                <Building2 className="w-4 h-4" />
+              </div>
+              Step 2: School Information
             </h2>
-            <div className="space-y-4">
+            <div className="space-y-5">
               
-              {/* State Selection */}
-              <div>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-medium text-gray-700">School Location (State)</label>
-                  {loadingSchools && <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full animate-pulse">Loading...</span>}
+              <div className="relative">
+                <div className="flex justify-between items-center mb-2">
+                  <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wide">School Location (State)</label>
+                  {loadingSchools && <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full animate-pulse border border-blue-100">Loading network...</span>}
                 </div>
-                <select required value={form.state} disabled={loadingSchools}
-                  onChange={e => setForm({...form, state: e.target.value, schoolName: '', session: '', term: '', className: ''})} 
-                  className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-gray-900 font-medium transition-all disabled:opacity-50">
-                  <option value="" disabled>Select state</option>
-                  {availableStates.map(state => (<option key={state} value={state}>{state}</option>))}
-                </select>
+                <div className="relative">
+                  <select 
+                    required 
+                    value={form.state} 
+                    disabled={loadingSchools}
+                    onChange={e => setForm({...form, state: e.target.value, schoolName: '', session: '', term: '', className: ''})} 
+                    className="w-full bg-gray-50 border border-gray-200 p-4 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white focus:border-blue-600 text-[#0a1128] font-bold transition-all disabled:opacity-50 appearance-none shadow-sm cursor-pointer"
+                  >
+                    <option value="" disabled>Select state</option>
+                    {availableStates.map(state => (<option key={state} value={state}>{state}</option>))}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                </div>
               </div>
 
-              {/* Filtered School Selection */}
-              <div className={`transition-all duration-300 ${!form.state ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Select School</label>
-                <select required value={form.schoolName} onChange={e => setForm({...form, schoolName: e.target.value, session: '', term: '', className: ''})} disabled={!form.state}
-                  className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-gray-900 font-medium transition-all disabled:opacity-50">
-                  <option value="" disabled>Tap to select school</option>
-                  {filteredSchools.map((school, idx) => (<option key={idx} value={school.name}>{school.name}</option>))}
-                </select>
+              <div className={`transition-all duration-500 ${!form.state ? 'opacity-30 grayscale pointer-events-none translate-y-2' : 'opacity-100 translate-y-0'}`}>
+                <label className="block text-[11px] font-bold text-gray-500 mb-2 uppercase tracking-wide">Select School</label>
+                <div className="relative">
+                  <select 
+                    required 
+                    value={form.schoolName} 
+                    onChange={e => setForm({...form, schoolName: e.target.value, session: '', term: '', className: ''})} 
+                    disabled={!form.state}
+                    className="w-full bg-gray-50 border border-gray-200 p-4 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white focus:border-blue-600 text-[#0a1128] font-bold transition-all disabled:opacity-50 appearance-none shadow-sm cursor-pointer"
+                  >
+                    <option value="" disabled>Tap to select school</option>
+                    {filteredSchools.map((school, idx) => (<option key={idx} value={school.name}>{school.name}</option>))}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                </div>
               </div>
 
-              <div className={`flex flex-col md:flex-row gap-4 transition-all duration-300 ${!form.schoolName ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">School Year</label>
-                  <select required value={form.session} onChange={e => setForm({...form, session: e.target.value})} disabled={!form.schoolName}
-                    className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-gray-900 font-medium transition-all">
-                    <option value="" disabled>Select year</option>
-                    <option value="2024/2025">2024/2025</option>
-                    <option value="2025/2026">2025/2026</option>
-                  </select>
+              <div className={`flex flex-col md:flex-row gap-5 transition-all duration-500 delay-100 ${!form.schoolName ? 'opacity-30 grayscale pointer-events-none translate-y-2' : 'opacity-100 translate-y-0'}`}>
+                <div className="flex-1 relative">
+                  <label className="block text-[11px] font-bold text-gray-500 mb-2 uppercase tracking-wide">School Year</label>
+                  <div className="relative">
+                    <select 
+                      required 
+                      value={form.session} 
+                      onChange={e => setForm({...form, session: e.target.value})} 
+                      disabled={!form.schoolName}
+                      className="w-full bg-gray-50 border border-gray-200 p-4 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white focus:border-blue-600 text-[#0a1128] font-bold transition-all appearance-none shadow-sm cursor-pointer"
+                    >
+                      <option value="" disabled>Select year</option>
+                      <option value="2024/2025">2024/2025</option>
+                      <option value="2025/2026">2025/2026</option>
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Term</label>
-                  <select required value={form.term} onChange={e => setForm({...form, term: e.target.value})} disabled={!form.schoolName}
-                    className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-gray-900 font-medium transition-all">
-                    <option value="" disabled>Select term</option>
-                    <option value="First Term">First Term</option>
-                    <option value="Second Term">Second Term</option>
-                    <option value="Third Term">Third Term</option>
-                  </select>
+                <div className="flex-1 relative">
+                  <label className="block text-[11px] font-bold text-gray-500 mb-2 uppercase tracking-wide">Term</label>
+                  <div className="relative">
+                    <select 
+                      required 
+                      value={form.term} 
+                      onChange={e => setForm({...form, term: e.target.value})} 
+                      disabled={!form.schoolName}
+                      className="w-full bg-gray-50 border border-gray-200 p-4 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white focus:border-blue-600 text-[#0a1128] font-bold transition-all appearance-none shadow-sm cursor-pointer"
+                    >
+                      <option value="" disabled>Select term</option>
+                      <option value="First Term">First Term</option>
+                      <option value="Second Term">Second Term</option>
+                      <option value="Third Term">Third Term</option>
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
   
-          {/* Payment Setup */}
-          <div className={`p-4 md:p-6 bg-gray-50/50 transition-all duration-300 ${!form.schoolName || !form.session || !form.term ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
-            <h2 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xs">3</span>
-              Class & Payment Setup
+          {/* STEP 3: Payment Setup */}
+          <div className={`p-6 md:p-8 bg-blue-50/20 transition-all duration-500 ${!form.schoolName || !form.session || !form.term ? 'opacity-30 grayscale pointer-events-none' : 'opacity-100'}`}>
+            <h2 className="text-sm font-bold text-gray-900 mb-5 flex items-center gap-3 uppercase tracking-wider">
+              <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shadow-inner">
+                <CreditCard className="w-4 h-4" />
+              </div>
+              Step 3: Class & Payment Setup
             </h2>
+            
             {form.schoolName && form.session && form.term && availableClasses.length === 0 && !loadingClasses ? (
-              <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-700 text-xs font-medium flex gap-2">
-                <svg className="w-4 h-4 shrink-0 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                School hasn't added fees for this term yet. Contact them directly.
+              <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl text-orange-800 text-sm font-bold flex gap-3 shadow-sm">
+                <AlertCircle className="w-5 h-5 shrink-0 text-orange-500" />
+                This school hasn't uploaded their fees for this term yet. Please contact the school administrator.
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Child's Class</label>
-                  <select required value={form.className} onChange={e => setForm({...form, className: e.target.value})} disabled={loadingClasses || availableClasses.length === 0}
-                    className="w-full bg-white border border-gray-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 text-gray-900 font-medium shadow-sm transition-all">
-                    <option value="" disabled>{loadingClasses ? 'Fetching classes...' : 'Tap to select class'}</option>
-                    {availableClasses.map((cls, idx) => (<option key={idx} value={cls.class_name}>{cls.class_name}</option>))}
-                  </select>
+                  <label className="block text-[11px] font-bold text-gray-500 mb-2 uppercase tracking-wide">Child's Class</label>
+                  <div className="relative">
+                    <select 
+                      required 
+                      value={form.className} 
+                      onChange={e => setForm({...form, className: e.target.value})} 
+                      disabled={loadingClasses || availableClasses.length === 0}
+                      className="w-full bg-white border border-gray-200 p-4 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 text-[#0a1128] font-bold shadow-sm transition-all appearance-none cursor-pointer"
+                    >
+                      <option value="" disabled>{loadingClasses ? 'Fetching classes...' : 'Tap to select class'}</option>
+                      {availableClasses.map((cls, idx) => (<option key={idx} value={cls.class_name}>{cls.class_name}</option>))}
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
                 </div>
   
                 <PaymentPreviewBox activeClassData={activeClassData} />
-                
               </div>
             )}
           </div>
   
-          {/* Footer */}
-          <div className="p-4 md:p-6 border-t border-gray-100 bg-white">
-            <button type="submit" disabled={isSubmitting || !form.schoolName || !form.session || !form.term || !form.className} 
-              className="w-full bg-[#0a1128] hover:bg-blue-600 text-white py-3 rounded-xl font-bold text-sm transition-all disabled:bg-gray-200 disabled:text-gray-400 flex items-center justify-center gap-2 active:scale-[0.98]">
-              {isSubmitting ? 'Setting up plan...' : 'Continue to Payment Plan'}
+          {/* Footer Submit */}
+          <div className="p-6 md:p-8 border-t border-gray-100 bg-gray-50">
+            <button 
+              type="submit" 
+              disabled={isSubmitting || !form.schoolName || !form.session || !form.term || !form.className} 
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white py-4 rounded-xl font-bold text-base transition-all disabled:from-gray-200 disabled:to-gray-200 disabled:text-gray-400 flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg shadow-blue-500/20 disabled:shadow-none"
+            >
+              {isSubmitting ? 'Generating Payment Plan...' : 'Continue to Payment Plan'}
             </button>
           </div>
         </form>

@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '../../../lib/supabase'
 
+import { Settings, UserPlus, FileText, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react'
+
 import DummyPaystack from './components/DummyPaystack'
 import StudentCard from './components/StudentCard'
 import RenewalModal from './components/RenewalModal'
 import ReceiptModal from './components/ReceiptModal'
 
-// --- NEW UNIVERSAL PRICING ENGINE ---
+// --- UNIVERSAL PRICING ENGINE ---
 export const getFeeBreakdown = (totalInvoice: number) => {
   if (totalInvoice <= 52499) return { fee: 2500, base: totalInvoice - 2500 }
   if (totalInvoice <= 105000) return { fee: 5000, base: totalInvoice - 5000 }
@@ -29,7 +31,6 @@ export default function ParentDashboard() {
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null)
   const [renewConfig, setRenewConfig] = useState<any | null>(null)
 
-  // Breakdown Modal State
   const [breakdownConfig, setBreakdownConfig] = useState<{
     plan: any; child: any; isFirstPayment: boolean;
   } | null>(null)
@@ -41,11 +42,9 @@ export default function ParentDashboard() {
 
   const fetchDashboardData = useCallback(async () => {
     try {
-      // 1. Fast Check: Reads local storage
       const { data: { session } } = await supabase.auth.getSession()
       let activeUserId = session?.user?.id
 
-      // 2. Secure Safety Net: Ping the server
       if (!activeUserId) {
         const { data: { user }, error: userError } = await supabase.auth.getUser()
         if (userError || !user) {
@@ -84,8 +83,6 @@ export default function ParentDashboard() {
           
           if (child.active_plans) {
             child.active_plans.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-            
-            // FIX: Force any legacy 'Pending Verification' plans to instantly read as 'Active'
             child.active_plans = child.active_plans.map((plan: any) => ({
               ...plan,
               status: plan.status === 'Pending Verification' ? 'Active' : plan.status
@@ -94,7 +91,6 @@ export default function ParentDashboard() {
           
           return {
             ...child,
-            // FIX: Force any legacy 'Pending Verification' students to instantly read as 'Active'
             enrollment_status: child.enrollment_status === 'Pending Verification' ? 'Active' : child.enrollment_status,
             display_school_name: foundSchool ? foundSchool.name : child.school_id
           }
@@ -112,17 +108,9 @@ export default function ParentDashboard() {
 
   useEffect(() => {
     fetchDashboardData()
-    
-    // 3. Tab-Switching Security
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
-      if (event === 'SIGNED_OUT') {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-          window.location.href = '/parent-login'
-        }
-      }
+      if (event === 'SIGNED_OUT') window.location.href = '/parent-login'
     })
-    
     return () => authListener.subscription.unsubscribe()
   }, [fetchDashboardData])
 
@@ -166,7 +154,7 @@ export default function ParentDashboard() {
   if (loading) return <div className="p-10 text-center text-sm font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Authenticating Secure Session...</div>
 
   return (
-    <div className="w-full max-w-6xl mx-auto p-4 sm:p-6 lg:p-10 animate-in fade-in pb-24">
+    <div className="w-full max-w-6xl mx-auto animate-in fade-in pb-24 relative">
       
       {/* PAYMENT BREAKDOWN MODAL */}
       {breakdownConfig && (() => {
@@ -176,51 +164,60 @@ export default function ParentDashboard() {
         const totalDueToday = breakdownConfig.isFirstPayment ? (depositAmount + serviceFee) : balanceAmount
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a1128]/80 p-4 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 mx-auto">
-              <div className="bg-gray-50 border-b border-gray-200 p-5">
-                <h2 className="text-lg font-bold text-[#0a1128] tracking-tight mb-1">Payment Breakdown</h2>
-                <p className="text-xs text-gray-500">{breakdownConfig.child.full_name} • {breakdownConfig.child.student_class}</p>
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0a1128]/40 backdrop-blur-md p-4 transition-all">
+            <div className="bg-white/95 backdrop-blur-xl rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl shadow-blue-900/20 border border-white/50 animate-in zoom-in-95 mx-auto">
+              
+              <div className="bg-gradient-to-r from-gray-50 to-white border-b border-gray-100 p-6 flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center shrink-0">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-[#0a1128] tracking-tight leading-tight">Payment Breakdown</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">{breakdownConfig.child.full_name} • {breakdownConfig.child.student_class}</p>
+                </div>
               </div>
               
-              <div className="p-5 space-y-4">
+              <div className="p-6 space-y-4">
                 {breakdownConfig.isFirstPayment ? (
                   <>
-                    <div className="flex justify-between items-center text-sm pb-2 border-b border-gray-100">
-                      <span className="text-gray-600 font-medium">School Tuition</span>
+                    <div className="flex justify-between items-center text-sm pb-3 border-b border-gray-100">
+                      <span className="text-gray-500 font-medium">School Tuition</span>
                       <span className="font-bold text-[#0a1128]">₦{baseTuition.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-600 font-medium">Initial Deposit (60%)</span>
+                      <span className="text-gray-500 font-medium">Initial Deposit (60%)</span>
                       <span className="font-bold text-[#0a1128]">₦{depositAmount.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-600 font-medium">Platform Service Fee</span>
+                      <span className="text-gray-500 font-medium">Platform Fee</span>
                       <span className="font-bold text-[#0a1128]">₦{serviceFee.toLocaleString()}</span>
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-600 font-medium">Final Balance (40%)</span>
+                    <div className="flex justify-between items-center text-sm pb-3 border-b border-gray-100">
+                      <span className="text-gray-500 font-medium">Final Balance (40%)</span>
                       <span className="font-bold text-[#0a1128]">₦{balanceAmount.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-600 font-medium">Platform Service Fee</span>
-                      <span className="font-bold text-gray-400">Paid upfront</span>
+                      <span className="text-gray-500 font-medium">Platform Fee</span>
+                      <span className="font-bold text-gray-400 italic">Paid upfront</span>
                     </div>
                   </>
                 )}
                 
-                <div className="border-t border-gray-200 pt-3 flex justify-between items-center">
-                  <span className="text-sm font-bold text-[#0a1128] uppercase tracking-wide">Total Due Today</span>
-                  <span className="text-xl font-black text-blue-600">₦{totalDueToday.toLocaleString()}</span>
+                <div className="bg-blue-50/50 rounded-2xl p-4 mt-2 flex justify-between items-center border border-blue-100/50">
+                  <span className="text-sm font-bold text-blue-900 tracking-wide">Total Due Today</span>
+                  <span className="text-2xl font-black text-blue-600">₦{totalDueToday.toLocaleString()}</span>
                 </div>
               </div>
 
-              <div className="p-4 bg-gray-50 flex gap-2 border-t border-gray-200">
-                <button onClick={() => setBreakdownConfig(null)} className="flex-1 py-3 text-xs font-bold text-gray-600 bg-white border border-gray-300 rounded-xl hover:bg-gray-100 transition-colors">Cancel</button>
-                <button onClick={() => triggerPayment(totalDueToday)} className="flex-[2] py-3 text-xs font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-sm">Proceed to Checkout ➔</button>
+              <div className="p-4 flex gap-3 border-t border-gray-100">
+                <button onClick={() => setBreakdownConfig(null)} className="flex-1 py-3.5 text-sm font-bold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition-all active:scale-95">Cancel</button>
+                <button onClick={() => triggerPayment(totalDueToday)} className="flex-[2] py-3.5 text-sm font-bold text-white bg-gradient-to-r from-blue-600 to-blue-500 rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 transition-all active:scale-95 flex items-center justify-center gap-2 group">
+                  Proceed to Pay
+                  <ChevronRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+                </button>
               </div>
             </div>
           </div>
@@ -252,64 +249,76 @@ export default function ParentDashboard() {
         />
       )}
 
-      {/* HEADER SECTION */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 px-1 md:px-0">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0a1128] tracking-tight">
-            Welcome back, {parentName ? parentName.split(' ')[0] : 'Parent'}
-          </h1>
-          <p className="text-gray-500 text-sm mt-1">Manage your active payment plans and student enrollments.</p>
-        </div>
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          <Link href="/parent/profile" className="hidden sm:flex px-5 py-3 border border-gray-300 bg-white rounded-full text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
-            Profile
-          </Link>
-          
-          <Link href="/parent/add-student" className="group relative w-full sm:w-auto flex items-center justify-center gap-3 px-6 py-3 bg-[#0a1128] text-white rounded-full font-bold text-sm transition-all hover:shadow-xl hover:shadow-blue-900/20 active:scale-95 overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            <div className="relative flex items-center justify-center w-6 h-6 rounded-full bg-white/10 shadow-inner border border-white/20">
-              <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" /></svg>
+      {/* FIX: STICKY HEADER SECTION */}
+      <div className="sticky top-0 z-40 bg-gray-50/95 backdrop-blur-md pt-4 sm:pt-6 lg:pt-10 pb-4 px-4 sm:px-6 lg:px-10 border-b border-gray-200/50 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#0a1128] to-blue-900 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-blue-900/20">
+              {parentName ? parentName.charAt(0) : 'P'}
             </div>
-            <span className="relative tracking-wide">Add New Student</span>
-          </Link>
-        </div>
-      </div>
-
-      {childrenData.length > 0 && (
-        <h2 className="text-lg font-bold text-[#0a1128] mb-4 px-1 md:px-0 tracking-tight">Your Active Plans</h2>
-      )}
-
-      {/* STUDENTS GRID */}
-      <div className={childrenData.length === 0 ? "" : "grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5"}>
-        {childrenData.length === 0 ? (
-          <div className="bg-white rounded-3xl border border-dashed border-gray-300 p-10 text-center flex flex-col items-center justify-center shadow-sm">
-            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" /></svg>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0a1128] tracking-tight">
+                Welcome back, {parentName ? parentName.split(' ')[0] : 'Parent'}
+              </h1>
+              <p className="text-gray-500 text-sm mt-0.5">Manage your active payment plans and enrollments.</p>
             </div>
-            <h3 className="text-lg font-bold text-[#0a1128] mb-2">No Students Linked</h3>
-            <p className="text-gray-500 text-sm font-medium mb-6 max-w-xs mx-auto">Register your child to a partner school to see your plans here.</p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <Link href="/parent/profile" className="hidden sm:flex px-6 py-3 border border-gray-200 bg-white rounded-full text-sm font-bold text-gray-700 hover:bg-gray-50 hover:shadow-md transition-all active:scale-95 items-center gap-2">
+              <Settings className="w-4 h-4" />
+              Settings
+            </Link>
             
-            <Link href="/parent/add-student" className="group relative w-full sm:w-auto flex items-center justify-center gap-3 px-6 py-3 bg-[#0a1128] text-white rounded-full font-bold text-sm transition-all hover:shadow-xl hover:shadow-blue-900/20 active:scale-95 overflow-hidden">
+            <Link href="/parent/add-student" className="group relative w-full sm:w-auto flex items-center justify-center gap-3 px-6 py-3 bg-[#0a1128] text-white rounded-full font-bold text-sm transition-all shadow-lg shadow-[#0a1128]/20 hover:shadow-blue-900/30 active:scale-95 overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               <div className="relative flex items-center justify-center w-6 h-6 rounded-full bg-white/10 shadow-inner border border-white/20">
-                <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" /></svg>
+                <UserPlus className="w-3.5 h-3.5 text-white" />
               </div>
               <span className="relative tracking-wide">Add New Student</span>
             </Link>
           </div>
-        ) : (
-          childrenData.map((child) => (
-            <StudentCard 
-              key={child.id}
-              child={child}
-              expandedHistoryId={expandedHistoryId}
-              onToggleHistory={(id: string) => setExpandedHistoryId(prev => prev === id ? null : id)}
-              onPay={handleShowBreakdown} 
-              onRenew={setRenewConfig}
-              onViewReceipt={setActiveReceipt}
-            />
-          ))
+        </div>
+      </div>
+
+      {/* DASHBOARD CONTENT CONTAINER */}
+      <div className="px-4 sm:px-6 lg:px-10">
+        {childrenData.length > 0 && (
+          <div className="flex items-center gap-2 mb-6">
+            <CheckCircle2 className="w-5 h-5 text-blue-600" />
+            <h2 className="text-lg font-extrabold text-[#0a1128] tracking-tight">Your Active Plans</h2>
+          </div>
         )}
+
+        {/* STUDENTS GRID */}
+        <div className={childrenData.length === 0 ? "" : "grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-6"}>
+          {childrenData.length === 0 ? (
+            <div className="bg-gradient-to-b from-white to-gray-50 rounded-3xl border border-dashed border-gray-300 p-12 text-center flex flex-col items-center justify-center shadow-sm relative overflow-hidden">
+              <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] mix-blend-overlay"></div>
+              <div className="w-20 h-20 bg-white shadow-xl shadow-blue-900/5 rounded-full flex items-center justify-center mb-6 relative z-10">
+                <AlertCircle className="w-10 h-10 text-blue-600" />
+              </div>
+              <h3 className="text-xl font-extrabold text-[#0a1128] mb-2 relative z-10">No Students Linked</h3>
+              <p className="text-gray-500 text-sm font-medium mb-8 max-w-sm mx-auto relative z-10 leading-relaxed">Connect your child to a verified partner school to instantly generate your flexible payment plan.</p>
+              
+              <Link href="/parent/add-student" className="group relative w-full sm:w-auto flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-full font-bold text-sm transition-all shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40 active:scale-95 z-10">
+                <span className="tracking-wide">Register Your Child</span>
+                <ChevronRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </div>
+          ) : (
+            childrenData.map((child) => (
+              <StudentCard 
+                key={child.id}
+                child={child}
+                expandedHistoryId={expandedHistoryId}
+                onToggleHistory={(id: string) => setExpandedHistoryId(prev => prev === id ? null : id)}
+                onPay={handleShowBreakdown} 
+                onRenew={setRenewConfig}
+                onViewReceipt={setActiveReceipt}
+              />
+            ))
+          )}
+        </div>
       </div>
     </div>
   )
