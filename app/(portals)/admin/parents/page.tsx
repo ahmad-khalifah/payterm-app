@@ -148,7 +148,7 @@ export default function AdminCollectionsPage() {
       {/* HEADER */}
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold text-[#0a1128] mb-2 tracking-tight flex items-center gap-3">
-          <ReceiptText className="w-8 h-8 text-purple-600" />
+          <ReceiptText className="w-8 h-8 text-blue-600" />
           Parent Collections
         </h1>
         <p className="text-gray-500 text-sm font-medium">Monitor household repayment health and manage defaults across the network.</p>
@@ -157,12 +157,12 @@ export default function AdminCollectionsPage() {
       {/* RISK METRICS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
         <div className="bg-white p-6 md:p-8 rounded-3xl border border-gray-100 shadow-sm flex justify-between items-center hover:shadow-md transition-shadow relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-50 rounded-full blur-3xl -mt-10 -mr-10 transition-transform group-hover:scale-110 pointer-events-none"></div>
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full blur-3xl -mt-10 -mr-10 transition-transform group-hover:scale-110 pointer-events-none"></div>
           <div className="relative z-10">
             <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Total Platform Arrears</p>
             <p className="text-3xl md:text-4xl font-black font-mono text-[#0a1128] truncate tracking-tight">₦{totalArrears.toLocaleString()}</p>
           </div>
-          <div className="bg-purple-50 p-4 rounded-2xl text-purple-600 shrink-0 relative z-10">
+          <div className="bg-blue-50 p-4 rounded-2xl text-blue-600 shrink-0 relative z-10">
             <Wallet className="w-8 h-8" />
           </div>
         </div>
@@ -193,7 +193,7 @@ export default function AdminCollectionsPage() {
               <input 
                 type="text" placeholder="Search parent, student, or school..." 
                 value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-600 focus:bg-white text-sm text-[#0a1128] font-medium transition-all shadow-sm"
+                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-sm text-[#0a1128] font-medium transition-all shadow-sm"
               />
             </div>
             
@@ -203,7 +203,7 @@ export default function AdminCollectionsPage() {
               </div>
               <select 
                 value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                className="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-600 focus:bg-white text-sm font-bold text-[#0a1128] transition-all appearance-none cursor-pointer shadow-sm"
+                className="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-sm font-bold text-[#0a1128] transition-all appearance-none cursor-pointer shadow-sm"
               >
                 <option value="All">All Statuses</option>
                 <option value="Active">Active (On Track)</option>
@@ -266,7 +266,7 @@ export default function AdminCollectionsPage() {
                           {item.children.map((child: any, idx: number) => (
                             <div key={idx} className="flex flex-col gap-1.5 p-3 bg-white border border-gray-100 rounded-xl shadow-sm">
                               <p className="text-[11px] font-bold text-[#0a1128] flex items-center gap-1.5">
-                                <GraduationCap className="w-3.5 h-3.5 text-purple-400" />
+                                <GraduationCap className="w-3.5 h-3.5 text-blue-500" />
                                 {child.student_name}
                               </p>
                               <p className="text-[10px] text-gray-500 truncate max-w-xs flex items-center gap-1.5">
@@ -305,7 +305,7 @@ export default function AdminCollectionsPage() {
                       <td className="p-5 text-right align-top">
                         <button 
                           onClick={() => handleNudge(item.parent_name, item.parent_phone, item.total_outstanding)}
-                          className="bg-white border border-gray-200 text-[#0a1128] px-4 py-2 rounded-xl text-[11px] font-bold hover:bg-gray-50 hover:text-purple-600 hover:border-purple-200 transition-all shadow-sm active:scale-95 inline-flex items-center gap-1.5 opacity-80 group-hover:opacity-100"
+                          className="bg-white border border-gray-200 text-[#0a1128] px-4 py-2 rounded-xl text-[11px] font-bold hover:bg-gray-50 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm active:scale-95 inline-flex items-center gap-1.5 opacity-80 group-hover:opacity-100"
                         >
                           <BellRing className="w-3.5 h-3.5" />
                           Nudge

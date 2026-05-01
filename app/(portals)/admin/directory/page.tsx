@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../../../lib/supabase'
 
 // --- NEW LUCIDE ICONS ---
-import { Users, Search, User, Mail, Phone, CheckCircle2, FileSearch } from 'lucide-react'
+import { Users, Search, User, Mail, Phone, CheckCircle2, FileSearch, Calendar } from 'lucide-react'
 
 export default function AdminParentsDirectory() {
   const [loading, setLoading] = useState(true)
@@ -55,8 +55,8 @@ export default function AdminParentsDirectory() {
       <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h1 className="text-3xl font-extrabold text-[#0a1128] tracking-tight mb-2 flex items-center gap-3">
-            <Users className="w-8 h-8 text-purple-600" />
-            Registered Parents
+            <Users className="w-8 h-8 text-blue-600" />
+            Registered Users
           </h1>
           <p className="text-gray-500 font-medium text-sm">A complete directory of all parent accounts on the platform.</p>
         </div>
@@ -77,7 +77,7 @@ export default function AdminParentsDirectory() {
               placeholder="Search by name, email, or phone..." 
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-600 focus:bg-white text-sm text-[#0a1128] font-medium transition-all shadow-sm"
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-sm text-[#0a1128] font-medium transition-all shadow-sm"
             />
           </div>
         </div>
@@ -86,10 +86,10 @@ export default function AdminParentsDirectory() {
           <table className="w-full text-left text-sm border-collapse whitespace-nowrap">
             <thead className="bg-gray-50/80 border-b border-gray-100 text-[10px] text-gray-500 uppercase tracking-widest font-bold">
               <tr>
-                <th className="p-5">Full Name</th>
-                <th className="p-5">Email Address</th>
-                <th className="p-5">Phone Number</th>
-                <th className="p-5 text-right">Account Status</th>
+                <th className="p-5">Account Name</th>
+                <th className="p-5">Contact Details</th>
+                <th className="p-5">Date Joined</th>
+                <th className="p-5 text-right">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -106,26 +106,32 @@ export default function AdminParentsDirectory() {
               ) : (
                 filteredParents.map((parent) => (
                   <tr key={parent.id} className="hover:bg-gray-50/50 transition-colors group">
-                    <td className="p-5">
-                      <div className="flex items-center gap-2">
+                    <td className="p-5 align-top">
+                      <div className="flex items-center gap-2.5 mt-1">
                         <User className="w-4 h-4 text-gray-400" />
                         <p className="font-extrabold text-[#0a1128] text-sm">{parent.full_name || 'Unnamed Parent'}</p>
                       </div>
                     </td>
-                    <td className="p-5">
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <Mail className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="font-medium">{parent.email}</span>
+                    <td className="p-5 align-top">
+                      <div className="flex flex-col gap-2 text-gray-600">
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                          <span className="font-medium text-xs">{parent.email}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                          <span className="font-mono text-xs">{parent.phone || 'N/A'}</span>
+                        </div>
                       </div>
                     </td>
-                    <td className="p-5">
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <Phone className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="font-mono">{parent.phone || 'N/A'}</span>
+                    <td className="p-5 align-top">
+                      <div className="flex items-center gap-2 text-gray-500 text-xs font-medium mt-1">
+                        <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        {new Date(parent.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </div>
                     </td>
-                    <td className="p-5 text-right">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border bg-green-50 text-green-700 border-green-200">
+                    <td className="p-5 text-right align-top">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 mt-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider border bg-green-50 text-green-700 border-green-200">
                         <CheckCircle2 className="w-3 h-3" />
                         Registered
                       </span>

@@ -29,7 +29,7 @@ export default function AdminLayout({
   ]
 
   return (
-    <div className="flex h-screen w-full bg-gray-50 font-sans overflow-hidden text-black selection:bg-gray-900 selection:text-white relative">
+    <div className="flex h-screen w-full bg-gray-50 font-sans overflow-hidden text-[#0a1128] selection:bg-blue-100 selection:text-blue-900 relative">
       
       {/* GLOBAL NOISE LAYER */}
       <div 
@@ -38,32 +38,32 @@ export default function AdminLayout({
       ></div>
       
       {/* MOBILE HEADER */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-black text-white flex items-center justify-between px-6 z-50 shadow-md border-b border-gray-900 print:hidden">
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-[#0a1128] text-white flex items-center justify-between px-6 z-50 shadow-md border-b border-white/5 print:hidden">
         <h2 className="text-xl font-extrabold tracking-tight flex items-center gap-2">
-          <span className="text-white">PayTerm</span> <span className="text-gray-400">HQ</span>
+          <span className="text-white">PayTerm</span> <span className="text-blue-500">HQ</span>
         </h2>
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 -mr-2 text-gray-400 hover:text-white transition-colors active:scale-95">
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 -mr-2 text-slate-400 hover:text-white transition-colors active:scale-95">
           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
       </div>
 
       {/* MOBILE OVERLAY */}
       {isMobileMenuOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 md:hidden transition-opacity print:hidden" onClick={() => setIsMobileMenuOpen(false)} />
+        <div className="fixed inset-0 bg-[#0a1128]/80 backdrop-blur-sm z-40 md:hidden transition-opacity print:hidden" onClick={() => setIsMobileMenuOpen(false)} />
       )}
 
       {/* SIDEBAR */}
       <div className={`
-        fixed md:relative z-50 w-72 md:w-64 bg-black text-white flex flex-col h-full 
-        transition-transform duration-300 ease-in-out border-r border-gray-900 shadow-2xl md:shadow-none print:hidden
+        fixed md:relative z-50 w-72 md:w-64 bg-[#0a1128] text-white flex flex-col h-full 
+        transition-transform duration-300 ease-in-out border-r border-white/5 shadow-2xl md:shadow-none print:hidden
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
         {/* LOGO */}
-        <div className="p-6 hidden md:block border-b border-gray-900">
+        <div className="p-6 hidden md:block border-b border-white/5">
           <h2 className="text-2xl font-extrabold tracking-tight flex items-center gap-2">
-            <span className="text-white">PayTerm</span> <span className="text-gray-400">HQ</span>
+            <span className="text-white">PayTerm</span> <span className="text-blue-500">HQ</span>
           </h2>
-          <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mt-1">
+          <div className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mt-1">
             Master Control
           </div>
         </div>
@@ -80,11 +80,11 @@ export default function AdminLayout({
                 onClick={() => setIsMobileMenuOpen(false)}
                 className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold transition-all active:scale-[0.98] ${
                   isActive 
-                  ? 'bg-white text-black shadow-lg' 
-                  : 'text-gray-400 hover:bg-gray-900 hover:text-white'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
+                  : 'text-slate-400 hover:bg-white/5 hover:text-white'
                 }`}
               >
-                <Icon className={`w-5 h-5 ${isActive ? 'text-black' : 'text-gray-500'}`} />
+                <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-500'}`} />
                 {item.name}
               </Link>
             )
