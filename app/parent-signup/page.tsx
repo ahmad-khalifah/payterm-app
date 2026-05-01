@@ -1,21 +1,38 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
+import toast from 'react-hot-toast'
 import { Mail, Lock, User, Phone, ArrowRight } from 'lucide-react'
 
 export default function ParentSignup() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [isInitializing, setIsInitializing] = useState(true)
   const [form, setForm] = useState({ fullName: '', email: '', phone: '', password: '' })
+
+  // Auto-redirect if already logged in
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          router.push('/parent')
+        }
+      } catch (err) {
+        console.error("Auth check error", err)
+      } finally {
+        setIsInitializing(false)
+      }
+    }
+    checkSession()
+  }, [router])
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setError('')
 
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -32,13 +49,16 @@ export default function ParentSignup() {
         if (insertError) throw insertError
       }
 
-      router.push('/parent-login?success=true')
+      toast.success("Account created successfully! You can now log in.")
+      router.push('/parent-login')
     } catch (err: any) {
-      setError(err.message || 'An error occurred during account creation.')
+      toast.error(err.message || 'An error occurred during account creation.')
     } finally {
       setLoading(false)
     }
   }
+
+  if (isInitializing) return <div className="min-h-screen bg-gray-50 flex items-center justify-center font-bold text-[#0a1128] uppercase tracking-widest animate-pulse">Checking Session...</div>
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center p-4 sm:p-6 animate-in fade-in font-sans relative overflow-hidden">
@@ -56,12 +76,6 @@ export default function ParentSignup() {
   
       <div className="mt-8 w-full max-w-[420px] mx-auto mb-10 relative z-10">
         <div className="bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-xl shadow-blue-900/5">
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 text-xs font-bold rounded-2xl text-center flex items-center justify-center gap-2">
-              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              {error}
-            </div>
-          )}
 
           <form className="space-y-5" onSubmit={handleSignup}>
             <div>

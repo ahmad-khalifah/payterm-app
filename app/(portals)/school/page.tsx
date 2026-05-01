@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import Link from 'next/link'
+import toast from 'react-hot-toast'
 
 import { 
   Building2, AlertCircle, CheckCircle2, Users, Search, 
@@ -22,6 +23,7 @@ const getFeeBreakdown = (totalInvoice: number) => {
 export default function SchoolDashboard() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [isInitializing, setIsInitializing] = useState(true) // <-- Strict Session Lock
   const [targetSchool, setTargetSchool] = useState<string | null>(null)
   const [schoolId, setSchoolId] = useState<string | null>(null)
 
@@ -36,7 +38,6 @@ export default function SchoolDashboard() {
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState('All')
   
-  // NEW: Track which households are expanded to show all children
   const [expandedHouseholds, setExpandedHouseholds] = useState<Set<string>>(new Set())
 
   const toggleHousehold = (parentId: string) => {
@@ -160,6 +161,7 @@ export default function SchoolDashboard() {
       }
     } catch (err: any) {
       console.error("Dashboard Fetch Error:", err.message)
+      toast.error("Failed to load dashboard data.")
     } finally {
       if (isMounted) setLoading(false)
     }
@@ -170,29 +172,26 @@ export default function SchoolDashboard() {
 
     const initializeDashboard = async () => {
       try {
-       const { data: { session } } = await supabase.auth.getSession()
-       let activeUserId = session?.user?.id
+        // STRICT PROTOCOL: Only use getUser() to validate secure HTTP cookies.
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        
+        if (userError || !user) {
+          router.push('/school-login')
+          return
+        }
 
-       if (!activeUserId) {
-         const { data: { user }, error: userError } = await supabase.auth.getUser()
-         if (userError || !user) {
-           window.location.href = '/school-login'
-           return
-         }
-         activeUserId = user.id
-       }
+        const activeUserId = user.id
+        if (isMounted) setSchoolId(activeUserId)
 
-       if (isMounted) setSchoolId(activeUserId)
-
-       const { data: schoolProfile, error: profileError } = await supabase
-         .from('partner_schools')
-         .select('*')
-         .eq('id', activeUserId)
-         .maybeSingle()
+        const { data: schoolProfile, error: profileError } = await supabase
+          .from('partner_schools')
+          .select('*')
+          .eq('id', activeUserId)
+          .maybeSingle()
 
         if (profileError) throw profileError
         if (!schoolProfile) {
-          window.location.href = '/school-login'
+          router.push('/school-login')
           return
         }
 
@@ -204,13 +203,16 @@ export default function SchoolDashboard() {
 
       } catch (err: any) {
         console.error("Initialize Error:", err.message)
+        toast.error("Could not authenticate session.")
+      } finally {
+        if (isMounted) setIsInitializing(false) // Release the UI lock once secure
       }
     }
 
     initializeDashboard()
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT') window.location.href = '/school-login'
+      if (event === 'SIGNED_OUT') router.push('/school-login')
     })
 
     return () => {
@@ -220,7 +222,7 @@ export default function SchoolDashboard() {
   }, [router])
 
   const handleNudge = (parentName: string, phone: string, amount: number) => {
-    alert(`School Action: Reminder drafted for ${parentName} regarding their ₦${amount.toLocaleString()} balance at ${phone}.`)
+    toast.success(`Reminder drafted for ${parentName} regarding their ₦${amount.toLocaleString()} balance.`)
   }
 
   const filteredLedger = householdLedger.filter(item => {
@@ -230,7 +232,7 @@ export default function SchoolDashboard() {
     return matchesSearch && matchesStatus;
   })
 
-  if (loading || !targetSchool) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Authenticating Secure Session...</div>
+  if (isInitializing || loading || !targetSchool) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Authenticating Secure Session...</div>
 
   return (
     <div className="w-full max-w-7xl mx-auto animate-in fade-in pb-20 relative">
@@ -448,11 +450,11 @@ export default function SchoolDashboard() {
                         <td className="p-5 font-black text-blue-600 font-mono text-sm align-top tracking-tight print:text-black">
                           ₦{item.total_paid.toLocaleString()}
                         </td>
-  
+
                         <td className="p-5 font-black text-green-600 font-mono text-sm align-top tracking-tight print:text-black">
                           ₦{item.total_cleared.toLocaleString()}
                         </td>
-  
+
                         <td className="p-5 text-right align-top print:hidden">
                           <button 
                             onClick={() => handleNudge(item.parent_name, item.parent_phone, item.total_outstanding)}

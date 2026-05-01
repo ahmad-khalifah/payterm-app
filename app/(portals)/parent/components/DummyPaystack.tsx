@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import toast from 'react-hot-toast'
 
 interface DummyPaystackProps {
   isOpen: boolean;
@@ -36,16 +37,19 @@ export default function DummyPaystack({
   const handlePaymentConfirm = async () => {
     setStep('processing')
     
+    // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 3500))
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error("Not authenticated")
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        throw new Error("Your session expired. Please refresh the page.")
+      }
 
       const reference = `PT-${Math.random().toString(36).substring(2, 10).toUpperCase()}`
 
       if (!studentId) {
-        throw new Error("CRITICAL: studentId is missing. The Dashboard did not pass it correctly.");
+        throw new Error("System error: Student ID is missing.")
       }
 
       const { error: txError } = await supabase
@@ -86,7 +90,7 @@ export default function DummyPaystack({
 
     } catch (err: any) {
       console.error("Payment Simulation Error:", err)
-      alert(`Transfer Failed: ${err.message || JSON.stringify(err)}`)
+      toast.error(err.message || "Transfer Failed.")
       setStep('transfer')
     }
   }

@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import toast from 'react-hot-toast'
+import { approveSchoolAction, suspendSchoolAction, toggleSchoolTierAction } from '@/app/actions/admin'
 
 import { 
   Building2, Search, Download, Settings, 
@@ -78,7 +80,7 @@ export default function AdminSchoolsPage() {
       
     } catch (err: any) {
       console.error("HQ Fetch Error:", err)
-      if (err.message) alert("Fetch Error: " + err.message)
+      if (err.message) toast.error("Fetch Error: " + err.message)
     } finally {
       setLoading(false)
     }
@@ -92,38 +94,94 @@ export default function AdminSchoolsPage() {
     return () => authListener.subscription.unsubscribe()
   }, [router])
 
-  const handleApproveSchool = async (schoolId: string, schoolName: string) => {
-    if (!window.confirm(`Approve ${schoolName} to join the platform?`)) return
-    setActionLoading(schoolId)
-    try {
-      const { error } = await supabase.from('partner_schools').update({ status: 'Active' }).eq('id', schoolId)
-      if (error) throw error
-      fetchSchoolsAndEscrow()
-    } catch (err: any) { alert(`Approval failed: ${err.message}`) } 
-    finally { setActionLoading(null) }
+  const handleApproveSchool = (schoolId: string, schoolName: string, schoolEmail: string) => {
+    toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-bold text-[#0a1128]">Approve {schoolName}?</p>
+          <div className="flex gap-2 mt-1">
+            <button 
+              onClick={async () => {
+                toast.dismiss(t.id)
+                setActionLoading(schoolId)
+                try {
+                  await approveSchoolAction(schoolId, schoolName, schoolEmail)
+                  toast.success("School approved successfully.")
+                  fetchSchoolsAndEscrow()
+                } catch (err: any) { 
+                  toast.error(`Approval failed: ${err.message}`) 
+                  console.error(err)
+                } finally { setActionLoading(null) }
+              }}
+              className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors"
+            >
+              Yes, Approve
+            </button>
+            <button onClick={() => toast.dismiss(t.id)} className="bg-gray-100 text-[#0a1128] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200">Cancel</button>
+          </div>
+        </div>
+      ), { duration: Infinity }
+    )
   }
 
-  const handleRevoke = async (schoolId: string, schoolName: string) => {
-    if (!window.confirm(`Suspend ${schoolName}?`)) return
-    setActionLoading(schoolId)
-    try {
-      const { error } = await supabase.from('partner_schools').update({ status: 'Suspended' }).eq('id', schoolId)
-      if (error) throw error
-      fetchSchoolsAndEscrow()
-    } catch (err: any) { alert(`Error: ${err.message}`) } 
-    finally { setActionLoading(null) }
+  const handleRevoke = (schoolId: string, schoolName: string) => {
+    toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-bold text-[#0a1128]">Suspend {schoolName}?</p>
+          <div className="flex gap-2 mt-1">
+            <button 
+              onClick={async () => {
+                toast.dismiss(t.id)
+                setActionLoading(schoolId)
+                try {
+                  await suspendSchoolAction(schoolId)
+                  toast.success("School suspended.")
+                  fetchSchoolsAndEscrow()
+                } catch (err: any) { 
+                  toast.error(`Suspension failed: ${err.message}`) 
+                } finally { setActionLoading(null) }
+              }}
+              className="bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-700 transition-colors"
+            >
+              Yes, Suspend
+            </button>
+            <button onClick={() => toast.dismiss(t.id)} className="bg-gray-100 text-[#0a1128] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200">Cancel</button>
+          </div>
+        </div>
+      ), { duration: Infinity }
+    )
   }
 
-  const handleToggleTier = async (schoolId: string, schoolName: string, currentTier: string) => {
+  const handleToggleTier = (schoolId: string, schoolName: string, currentTier: string) => {
     const newTier = currentTier === 'Tier 1' ? 'Tier 2' : 'Tier 1'
-    if (!window.confirm(`Upgrade ${schoolName} to ${newTier}? Ensure GSI mandates are signed.`)) return
-    setActionLoading(schoolId)
-    try {
-      const { error } = await supabase.from('partner_schools').update({ tier: newTier } as any).eq('id', schoolId)
-      if (error) throw error
-      fetchSchoolsAndEscrow() 
-    } catch (err: any) { alert(`Tier update failed: ${err.message}`) } 
-    finally { setActionLoading(null) }
+    toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-bold text-[#0a1128]">Upgrade {schoolName} to {newTier}?</p>
+          <p className="text-xs text-gray-500">Ensure GSI mandates are signed.</p>
+          <div className="flex gap-2 mt-1">
+            <button 
+              onClick={async () => {
+                toast.dismiss(t.id)
+                setActionLoading(schoolId)
+                try {
+                  await toggleSchoolTierAction(schoolId, newTier)
+                  toast.success(`Upgraded to ${newTier}.`)
+                  fetchSchoolsAndEscrow()
+                } catch (err: any) { 
+                  toast.error(`Tier update failed: ${err.message}`) 
+                } finally { setActionLoading(null) }
+              }}
+              className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors"
+            >
+              Confirm Upgrade
+            </button>
+            <button onClick={() => toast.dismiss(t.id)} className="bg-gray-100 text-[#0a1128] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200">Cancel</button>
+          </div>
+        </div>
+      ), { duration: Infinity }
+    )
   }
 
   const handleDownloadCSV = () => {
@@ -307,7 +365,7 @@ export default function AdminSchoolsPage() {
                     <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
                       {(school.status === 'Pending Verification' || school.status === 'Pending') && (
                         <button 
-                          onClick={() => handleApproveSchool(school.id, school.name)} 
+                          onClick={() => handleApproveSchool(school.id, school.name, school.finance_email || school.email)} 
                           disabled={actionLoading === school.id} 
                           className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-blue-500 text-white px-4 py-2 rounded-xl text-[11px] font-bold hover:from-blue-700 hover:to-blue-600 transition-all shadow-md shadow-blue-500/20 disabled:shadow-none disabled:from-gray-300 disabled:to-gray-300 active:scale-95 flex items-center justify-center gap-1"
                         >

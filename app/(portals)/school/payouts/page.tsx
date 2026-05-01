@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation' 
 import { supabase } from '../../../../lib/supabase'
+import toast from 'react-hot-toast'
 
 import { Wallet, ArrowDownCircle, AlertCircle } from 'lucide-react'
 
@@ -21,6 +22,7 @@ const getFeeBreakdown = (totalInvoice: number) => {
 export default function PayoutsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [isInitializing, setIsInitializing] = useState(true) // Session Lock
   const [fetchError, setFetchError] = useState<string | null>(null)
   
   const [totalAvailable, setTotalAvailable] = useState(0)
@@ -65,7 +67,6 @@ export default function PayoutsPage() {
         const studentPlan = safePlans.find((p: any) => p.student_id === student.id && p.status !== 'Completed')
         if (!studentPlan) return
 
-        // FIX: Match the Admin Dashboard verification logic exactly
         const isVerified = student.enrollment_status === 'Verified' || studentPlan.status === 'Active'
         if (!isVerified) return
 
@@ -94,6 +95,7 @@ export default function PayoutsPage() {
     } catch (err: any) {
       console.error("Fetch Error:", err)
       if (isMounted) setFetchError(err.message)
+      toast.error("Failed to sync payout ledger.")
     } finally {
       if (isMounted) setLoading(false)
     }
@@ -104,17 +106,14 @@ export default function PayoutsPage() {
 
     const initializePage = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
-        let activeUserId = session?.user?.id
-
-        if (!activeUserId) {
-          const { data: { user }, error: userError } = await supabase.auth.getUser()
-          if (userError || !user) {
-            router.push('/school-login')
-            return
-          }
-          activeUserId = user.id
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        
+        if (userError || !user) {
+          router.push('/school-login')
+          return
         }
+        
+        const activeUserId = user.id
 
         const { data: schoolProfile, error: profileError } = await supabase
           .from('partner_schools')
@@ -140,7 +139,10 @@ export default function PayoutsPage() {
         }
       } catch (err) {
         console.error("Initialization Error:", err)
+        toast.error("Session authentication failed.")
         if (isMounted) setLoading(false) 
+      } finally {
+        if (isMounted) setIsInitializing(false)
       }
     }
 
@@ -156,7 +158,7 @@ export default function PayoutsPage() {
     }
   }, [router, fetchPayoutData])
 
-  if (loading || (!targetSchool && !fetchError)) return <div className="p-10 text-center font-bold text-[#0a1128] tracking-widest text-sm uppercase h-screen flex items-center justify-center animate-pulse">Calculating cleared tranches...</div>
+  if (isInitializing || loading || (!targetSchool && !fetchError)) return <div className="p-10 text-center font-bold text-[#0a1128] tracking-widest text-sm uppercase h-screen flex items-center justify-center animate-pulse">Authenticating Secure Session...</div>
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in pb-20">

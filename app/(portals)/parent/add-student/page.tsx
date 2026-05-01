@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '../../../../lib/supabase'
+import { supabase } from '../../../../lib/supabase' // Adjust your import path as needed
 import Link from 'next/link'
 import PaymentPreviewBox from './components/PaymentPreviewBox'
+import toast from 'react-hot-toast'
 
-// --- NEW LUCIDE ICONS ---
 import { ArrowLeft, User, Building2, CreditCard, AlertCircle, ChevronDown } from 'lucide-react'
 
 export default function AddStudentPage() {
@@ -27,6 +27,7 @@ export default function AddStudentPage() {
     className: ''
   })
 
+  // 1. Load active schools on mount
   useEffect(() => {
     const fetchSchools = async () => {
       try {
@@ -40,6 +41,7 @@ export default function AddStudentPage() {
         if (data) setSchools(data)
       } catch (err: any) {
         console.error("Error fetching schools:", err.message)
+        toast.error("Failed to load school directory.")
       } finally {
         setLoadingSchools(false)
       }
@@ -47,6 +49,7 @@ export default function AddStudentPage() {
     fetchSchools()
   }, [])
 
+  // 2. Load classes strictly when School, Session, and Term are selected
   useEffect(() => {
     if (!form.schoolName || !form.session || !form.term) {
       setAvailableClasses([])
@@ -67,6 +70,7 @@ export default function AddStudentPage() {
         if (error) throw error
         if (data) setAvailableClasses(data)
         
+        // Reset class selection when parent variables change
         setForm(prev => ({ ...prev, className: '' }))
       } catch (err: any) {
         console.error("Error fetching classes:", err.message)
@@ -78,13 +82,20 @@ export default function AddStudentPage() {
     fetchClasses()
   }, [form.schoolName, form.session, form.term])
 
+  // 3. Handle strict submission
   const handleLinkStudent = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Front-end validation to prevent null submission errors
+    if (!form.fullName || !form.schoolName || !form.session || !form.term || !form.className) {
+      return toast.error("Please fill in all required fields.")
+    }
+
     setIsSubmitting(true)
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error("You must be logged in.")
+      if (!user) throw new Error("You must be logged in to add a child.")
 
       const selectedFeeConfig = availableClasses.find(c => c.class_name === form.className)
       if (!selectedFeeConfig) throw new Error("Invalid class selection.")
@@ -92,6 +103,7 @@ export default function AddStudentPage() {
       const selectedSchool = schools.find(s => s.name === form.schoolName && s.state === form.state)
       if (!selectedSchool || !selectedSchool.id) throw new Error("Could not verify the internal School ID.")
 
+      // Insert Student
       const { data: studentData, error: studentError } = await supabase
         .from('students')
         .insert({
@@ -108,6 +120,7 @@ export default function AddStudentPage() {
 
       const uniqueCode = `PT-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
       
+      // Insert Plan using strict session/term data
       const { error: planError } = await supabase
         .from('active_plans')
         .insert({
@@ -127,11 +140,16 @@ export default function AddStudentPage() {
 
       if (planError) throw planError
 
-      alert("Student profile generated! Redirecting to your dashboard to fund the 60% Account downpayment.")
-      router.push('/parent') 
+      toast.success("Student profile generated!")
+      toast.success("Redirecting to fund the 60% downpayment...")
+      
+      // Give the toast 1.5s to be read before redirecting
+      setTimeout(() => {
+        router.push('/parent') 
+      }, 1500)
 
     } catch (err: any) {
-      alert(`Error linking student: ${err.message}`)
+      toast.error(err.message)
     } finally {
       setIsSubmitting(false)
     }
@@ -155,7 +173,6 @@ export default function AddStudentPage() {
       </div>
   
       <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-blue-900/5 overflow-hidden relative">
-        {/* Subtle background glow */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50/50 rounded-full blur-3xl pointer-events-none -mt-20 -mr-20"></div>
 
         <form onSubmit={handleLinkStudent} className="relative z-10">
@@ -240,8 +257,10 @@ export default function AddStudentPage() {
                       className="w-full bg-gray-50 border border-gray-200 p-4 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white focus:border-blue-600 text-[#0a1128] font-bold transition-all appearance-none shadow-sm cursor-pointer"
                     >
                       <option value="" disabled>Select year</option>
-                      <option value="2024/2025">2024/2025</option>
+                      {/* FIX: Values now perfectly match the Fee Setup strings */}
                       <option value="2025/2026">2025/2026</option>
+                      <option value="2026/2027">2026/2027</option>
+                      <option value="2027/2028">2027/2028</option>
                     </select>
                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>

@@ -1,24 +1,27 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
+import toast from 'react-hot-toast'
 
-// --- NEW LUCIDE ICONS ---
 import { 
   Settings, CalendarRange, ChevronDown, Building2, 
   Mail, Phone, MapPin, UserPlus, ShieldAlert, 
-  Trash2, Send, Save, Users
+  Trash2, Send, Save, Users, AlertTriangle
 } from 'lucide-react'
 
 export default function SettingsPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [isInitializing, setIsInitializing] = useState(true) // Session Lock
+  
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const [isSavingCalendar, setIsSavingCalendar] = useState(false)
   const [isInviting, setIsInviting] = useState(false)
   
   const [targetSchool, setTargetSchool] = useState<string | null>(null)
   const [schoolId, setSchoolId] = useState<string | null>(null)
-  const [isInitializing, setIsInitializing] = useState(true)
 
   const [profile, setProfile] = useState({ finance_email: '', phone: '', address: '' })
   const [calendar, setCalendar] = useState({ session: '2026/2027', term: 'First Term' })
@@ -29,11 +32,55 @@ export default function SettingsPage() {
   const sessionList = ["2024/2025", "2025/2026", "2026/2027", "2027/2028"]
   const termList = ["First Term", "Second Term", "Third Term"]
 
+  const fetchSettingsData = useCallback(async (sid: string, sName: string) => {
+    try {
+      const { data: schoolData, error: schoolError } = await supabase
+        .from('partner_schools')
+        .select('finance_email, contact_phone, current_session, current_term')
+        .eq('id', sid) 
+        .single()
+      
+      if (schoolError) console.warn("Error fetching school data:", schoolError.message)
+      
+      if (schoolData) {
+        setProfile({
+          finance_email: schoolData.finance_email || '',
+          phone: schoolData.contact_phone || '',
+          address: '' // Change to: schoolData.address || '' (once you add the column)
+        })
+        setCalendar({
+          session: schoolData.current_session || '2026/2027',
+          term: schoolData.current_term || 'First Term'
+        })
+      }
+
+      const { data: userData } = await supabase
+        .from('school_users')
+        .select('*')
+        .eq('school_name', sName)
+        .order('created_at', { ascending: true })
+      
+      if (userData) setUsers(userData)
+
+    } catch (err) {
+      console.error("Fetch error:", err)
+      toast.error("Failed to load settings data.")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
+    let isMounted = true
+
     const initializePage = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        
+        if (authError || !user) {
+          router.push('/school-login')
+          return
+        }
 
         const { data: schoolProfile } = await supabase
           .from('partner_schools')
@@ -41,67 +88,41 @@ export default function SettingsPage() {
           .eq('id', user.id)
           .single()
 
-        if (schoolProfile) {
+        if (!schoolProfile) {
+          router.push('/school-login')
+          return
+        }
+
+        if (isMounted) {
           setTargetSchool(schoolProfile.name)
           setSchoolId(user.id)
+          await fetchSettingsData(user.id, schoolProfile.name as string)
         }
       } catch (err) {
         console.error("Auth Error:", err)
       } finally {
-        setIsInitializing(false)
+        if (isMounted) setIsInitializing(false)
       }
     }
+    
     initializePage()
-  }, [])
 
-  useEffect(() => {
-    if (!schoolId || !targetSchool) return
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') router.push('/school-login')
+    })
 
-    const fetchSettingsData = async () => {
-      setLoading(true)
-      try {
-        const { data: schoolData, error: schoolError } = await supabase
-          .from('partner_schools')
-          .select('finance_email, contact_phone, current_session, current_term')
-          .eq('id', schoolId) 
-          .single()
-        
-        if (schoolError) console.warn("Error fetching school data:", schoolError.message)
-        
-        if (schoolData) {
-          setProfile({
-            finance_email: schoolData.finance_email || '',
-            phone: schoolData.contact_phone || '',
-            address: '' // Change to: schoolData.address || '' (once you add the column)
-          })
-          setCalendar({
-            session: schoolData.current_session || '2026/2027',
-            term: schoolData.current_term || 'First Term'
-          })
-        }
-
-        const { data: userData } = await supabase
-          .from('school_users')
-          .select('*')
-          .eq('school_name', targetSchool)
-          .order('created_at', { ascending: true })
-        
-        if (userData) setUsers(userData)
-
-      } catch (err) {
-        console.error("Fetch error:", err)
-      } finally {
-        setLoading(false)
-      }
+    return () => {
+      isMounted = false
+      authListener.subscription.unsubscribe()
     }
-
-    fetchSettingsData()
-  }, [schoolId, targetSchool])
+  }, [router, fetchSettingsData])
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!schoolId) return
     setIsSavingProfile(true)
+    const loadingToast = toast.loading("Saving profile...")
+    
     try {
       const { error } = await supabase.from('partner_schools').update({
         finance_email: profile.finance_email,
@@ -110,20 +131,43 @@ export default function SettingsPage() {
       }).eq('id', schoolId) 
 
       if (error) throw error
-      alert("School profile updated successfully.")
+      toast.success("School profile updated successfully.", { id: loadingToast })
     } catch (err: any) {
-      alert(`Update failed: ${err.message}`)
+      toast.error(`Update failed: ${err.message}`, { id: loadingToast })
     } finally {
       setIsSavingProfile(false)
     }
   }
 
-  const handleUpdateCalendar = async (e: React.FormEvent) => {
+  // --- CUSTOM INTERACTIVE TOASTS ---
+  const confirmCalendarUpdate = (e: React.FormEvent) => {
     e.preventDefault()
+    toast((t) => (
+      <div className="flex flex-col gap-3 max-w-sm">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-bold text-[#0a1128] text-sm">Update Academic Calendar?</h3>
+            <p className="text-xs text-gray-500 mt-1">Are you sure you want to change the active term to <strong>{calendar.term} ({calendar.session})</strong>? This will instantly update your entire dashboard view globally.</p>
+          </div>
+        </div>
+        <div className="flex gap-2 justify-end mt-2">
+          <button onClick={() => toast.dismiss(t.id)} className="px-3 py-1.5 text-xs font-bold text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-md transition-colors">
+            Cancel
+          </button>
+          <button onClick={() => { toast.dismiss(t.id); executeCalendarUpdate(); }} className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm">
+            Yes, Update Calendar
+          </button>
+        </div>
+      </div>
+    ), { duration: Infinity })
+  }
+
+  const executeCalendarUpdate = async () => {
     if (!schoolId) return
-    if (!window.confirm(`Are you sure you want to change the active term to ${calendar.term} (${calendar.session})? This will update your entire dashboard view.`)) return
-    
     setIsSavingCalendar(true)
+    const loadingToast = toast.loading("Syncing calendar...")
+    
     try {
       const { error } = await supabase.from('partner_schools').update({
         current_session: calendar.session,
@@ -131,9 +175,9 @@ export default function SettingsPage() {
       }).eq('id', schoolId)
 
       if (error) throw error
-      alert("Academic calendar updated globally!")
+      toast.success("Academic calendar updated globally!", { id: loadingToast })
     } catch (err: any) {
-      alert(`Update failed: ${err.message}`)
+      toast.error(`Update failed: ${err.message}`, { id: loadingToast })
     } finally {
       setIsSavingCalendar(false)
     }
@@ -143,34 +187,62 @@ export default function SettingsPage() {
     e.preventDefault()
     if (!targetSchool) return
     setIsInviting(true)
+    const loadingToast = toast.loading("Sending invitation...")
+    
     try {
       const { error } = await supabase.from('school_users').insert({
         school_name: targetSchool, user_email: newUser.email, role: newUser.role
       })
       if (error) throw error
-      alert(`Invitation sent to ${newUser.email}`)
+      
+      toast.success(`Invitation sent to ${newUser.email}`, { id: loadingToast })
       setNewUser({ email: '', role: 'Read-Only' })
+      
       const { data: userData } = await supabase.from('school_users').select('*').eq('school_name', targetSchool).order('created_at', { ascending: true })
       if (userData) setUsers(userData)
     } catch (err: any) {
-      alert(`Invitation failed: ${err.message}`)
+      toast.error(`Invitation failed: ${err.message}`, { id: loadingToast })
     } finally {
       setIsInviting(false)
     }
   }
 
-  const handleRemoveUser = async (id: string, email: string) => {
-    if (!window.confirm(`Are you sure you want to revoke access for ${email}?`)) return
+  const confirmRemoveUser = (id: string, email: string) => {
+    toast((t) => (
+      <div className="flex flex-col gap-3 max-w-sm">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-bold text-[#0a1128] text-sm">Revoke Access?</h3>
+            <p className="text-xs text-gray-500 mt-1">Are you sure you want to revoke access for <strong>{email}</strong>? They will immediately lose access to the portal.</p>
+          </div>
+        </div>
+        <div className="flex gap-2 justify-end mt-2">
+          <button onClick={() => toast.dismiss(t.id)} className="px-3 py-1.5 text-xs font-bold text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-md transition-colors">
+            Cancel
+          </button>
+          <button onClick={() => { toast.dismiss(t.id); executeRemoveUser(id); }} className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors shadow-sm">
+            Yes, Revoke Access
+          </button>
+        </div>
+      </div>
+    ), { duration: Infinity })
+  }
+
+  const executeRemoveUser = async (id: string) => {
+    const loadingToast = toast.loading("Revoking access...")
     try {
       const { error } = await supabase.from('school_users').delete().eq('id', id)
       if (error) throw error
+      
       setUsers(users.filter(u => u.id !== id))
+      toast.success("User access revoked.", { id: loadingToast })
     } catch (err: any) {
-      alert(`Could not remove user: ${err.message}`)
+      toast.error(`Could not remove user: ${err.message}`, { id: loadingToast })
     }
   }
 
-  if (isInitializing || loading) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest h-full flex items-center justify-center animate-pulse">Loading Configuration...</div>
+  if (isInitializing || loading) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Loading Configuration...</div>
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in pb-20">
@@ -201,7 +273,7 @@ export default function SettingsPage() {
               <p className="text-xs text-gray-500 mt-1 font-medium">Changing this sets the active dashboard view for your entire school.</p>
             </div>
             
-            <form onSubmit={handleUpdateCalendar} className="p-6 md:p-8 space-y-5 relative z-10 bg-white">
+            <form onSubmit={confirmCalendarUpdate} className="p-6 md:p-8 space-y-5 relative z-10 bg-white">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div className="relative">
                   <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2">Active Session</label>
@@ -403,7 +475,7 @@ export default function SettingsPage() {
                         </td>
                         <td className="p-5 md:p-6 text-right">
                           <button 
-                            onClick={() => handleRemoveUser(user.id, user.user_email)} 
+                            onClick={() => confirmRemoveUser(user.id, user.user_email)} 
                             className="text-red-600 hover:text-red-700 font-bold text-[11px] bg-white px-4 py-2 rounded-xl border border-red-100 shadow-sm hover:bg-red-50 hover:border-red-200 active:scale-95 transition-all inline-flex items-center gap-1.5 opacity-80 group-hover:opacity-100"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

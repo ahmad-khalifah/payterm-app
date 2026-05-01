@@ -1,15 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { supabase } from '../../../../lib/supabase'
+import { useState, useEffect, useCallback } from 'react'
+import { supabase } from '../../../../lib/supabase' // Adjust path if needed
+import toast from 'react-hot-toast'
 import { Bell, BellRing, CheckCircle2, Check } from 'lucide-react'
 
 export default function NotificationsPage() {
   const [loading, setLoading] = useState(true)
+  const [isInitializing, setIsInitializing] = useState(true) // Session lock
   const [notifications, setNotifications] = useState<any[]>([])
   const [userId, setUserId] = useState<string | null>(null)
 
-  const fetchNotifications = async (uid: string) => {
+  const fetchNotifications = useCallback(async (uid: string) => {
     try {
       const { data, error } = await supabase
         .from('notifications')
@@ -20,48 +22,57 @@ export default function NotificationsPage() {
       if (error) throw error
       if (data) setNotifications(data)
     } catch (err: any) {
-      console.error("Error fetching notifications:", err.message || JSON.stringify(err, null, 2))
+      console.error("Fetch error:", err.message)
+      toast.error("Failed to sync notifications.")
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     let channel: any;
 
     const initialize = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      setUserId(user.id)
-      
-      await fetchNotifications(user.id)
+      try {
+        // Strict server-side auth check
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        
+        if (authError || !user) {
+          return // Handled by layout or middleware routing
+        }
+        
+        setUserId(user.id)
+        await fetchNotifications(user.id)
 
-      channel = supabase
-        .channel(`notifications-${user.id}`)
-        .on(
-          'postgres_changes',
-          { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'notifications',
-            filter: `parent_id=eq.${user.id}` 
-          },
-          (payload) => {
-            console.log('New notification received:', payload)
-            fetchNotifications(user.id) 
-          }
-        )
-        .subscribe()
+        // Set up Realtime listener
+        channel = supabase
+          .channel(`notifications-${user.id}`)
+          .on(
+            'postgres_changes',
+            { 
+              event: 'INSERT', 
+              schema: 'public', 
+              table: 'notifications',
+              filter: `parent_id=eq.${user.id}` 
+            },
+            () => {
+              fetchNotifications(user.id) 
+            }
+          )
+          .subscribe()
+      } catch (err) {
+        console.error("Initialization Error:", err)
+      } finally {
+        setIsInitializing(false)
+      }
     }
 
     initialize()
 
     return () => {
-      if (channel) {
-        supabase.removeChannel(channel)
-      }
+      if (channel) supabase.removeChannel(channel)
     }
-  }, [])
+  }, [fetchNotifications])
 
   const markAsRead = async (id: string) => {
     try {
@@ -72,12 +83,13 @@ export default function NotificationsPage() {
 
       if (error) throw error
       setNotifications(notifications.map(n => n.id === id ? { ...n, is_read: true } : n))
+      toast.success("Notification marked as read")
     } catch (err: any) {
-      console.error("Error marking as read:", err.message)
+      toast.error("Failed to mark notification as read")
     }
   }
 
-  if (loading) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest h-full flex items-center justify-center animate-pulse">Loading Alerts...</div>
+  if (isInitializing || loading) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Loading Alerts...</div>
 
   return (
     <div className="w-full max-w-3xl mx-auto md:p-4 lg:p-8 animate-in fade-in pb-20">
@@ -109,7 +121,6 @@ export default function NotificationsPage() {
                   note.is_read ? 'bg-white hover:bg-gray-50/50' : 'bg-blue-50/30'
                 }`}
               >
-                {/* Unread Accent Bar */}
                 {!note.is_read && <div className="absolute left-0 top-0 w-1 h-full bg-blue-600"></div>}
 
                 <div className="shrink-0 mt-1">

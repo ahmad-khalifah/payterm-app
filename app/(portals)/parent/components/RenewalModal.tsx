@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '../../../../lib/supabase'
+import { supabase } from '@/lib/supabase'
+import toast from 'react-hot-toast'
 import { CalendarClock, BookOpen, ChevronRight, X } from 'lucide-react'
 
 export default function RenewalModal({ config, currentUserId, onClose, onSuccess }: any) {
@@ -28,7 +29,9 @@ export default function RenewalModal({ config, currentUserId, onClose, onSuccess
         .eq('term', renewForm.term)
         .single()
 
-      if (feeError || !feeConfig) throw new Error(`School has not added fees for ${renewForm.term} ${renewForm.session} yet. Contact them.`)
+      if (feeError || !feeConfig) {
+        throw new Error(`School has not added fees for ${renewForm.term} ${renewForm.session} yet.`)
+      }
 
       await supabase
         .from('active_plans')
@@ -61,11 +64,11 @@ export default function RenewalModal({ config, currentUserId, onClose, onSuccess
 
       if (newPlanError) throw newPlanError
 
-      alert("Child successfully enrolled for the new term! You can now pay the initial deposit.")
+      toast.success("Child successfully enrolled! You can now pay the initial deposit.")
       onSuccess() 
 
     } catch (err: any) {
-      alert(`Renewal Failed: ${err.message}`)
+      toast.error(err.message || "Failed to renew term.")
     } finally {
       setIsRenewing(false)
     }

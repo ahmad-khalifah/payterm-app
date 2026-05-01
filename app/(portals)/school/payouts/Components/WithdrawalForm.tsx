@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { supabase } from '../../../../../lib/supabase'
+import toast from 'react-hot-toast'
 import { Landmark, Hash, ChevronDown, Info, Send } from 'lucide-react'
 
 export default function WithdrawalForm({ totalAvailable, targetSchool, schoolId, onSuccess }: any) {
@@ -11,9 +12,14 @@ export default function WithdrawalForm({ totalAvailable, targetSchool, schoolId,
   const handleRequest = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!targetSchool || !schoolId) return 
-    if (totalAvailable <= 0) return alert("You do not have any cleared funds available to withdraw.")
+    if (totalAvailable <= 0) {
+      toast.error("You do not have any cleared funds available to withdraw.")
+      return
+    }
     
     setIsSubmitting(true)
+    const loadingToast = toast.loading("Submitting request...")
+
     try {
       const { error } = await supabase
         .from('withdrawal_requests')
@@ -26,12 +32,13 @@ export default function WithdrawalForm({ totalAvailable, targetSchool, schoolId,
         })
 
       if (error) throw error
-      alert("Withdrawal request submitted successfully.")
+      
+      toast.success("Withdrawal request submitted successfully.", { id: loadingToast })
       setForm({ bankName: '', accountNumber: '' })
       
       onSuccess() 
     } catch (err: any) {
-      alert(`Error submitting request: ${err.message}`)
+      toast.error(`Error submitting request: ${err.message}`, { id: loadingToast })
     } finally {
       setIsSubmitting(false)
     }

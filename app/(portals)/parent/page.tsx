@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '../../../lib/supabase'
+import toast from 'react-hot-toast'
 
 import { Settings, UserPlus, FileText, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react'
 
@@ -22,7 +23,7 @@ export const getFeeBreakdown = (totalInvoice: number) => {
 
 export default function ParentDashboard() {
   const router = useRouter()
-  const [loading, setLoading] = useState(true)
+  const [isInitializing, setIsInitializing] = useState(true) // <-- Strict Session Lock
   const [parentName, setParentName] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [childrenData, setChildrenData] = useState<any[]>([])
@@ -42,18 +43,17 @@ export default function ParentDashboard() {
 
   const fetchDashboardData = useCallback(async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      let activeUserId = session?.user?.id
-
-      if (!activeUserId) {
-        const { data: { user }, error: userError } = await supabase.auth.getUser()
-        if (userError || !user) {
-          window.location.href = '/parent-login' 
-          return
-        }
-        activeUserId = user.id
+      // STRICT PROTOCOL: Only use getUser() to validate secure HTTP cookies.
+      // This permanently fixes the tab-switching ghost account bug.
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      
+      if (userError || !user) {
+        toast.error("Session expired. Please log in again.")
+        router.push('/parent-login') 
+        return
       }
       
+      const activeUserId = user.id
       setCurrentUserId(activeUserId)
       
       const { data: parentProfile } = await supabase.from('parents').select('full_name').eq('id', activeUserId).single()
@@ -101,18 +101,19 @@ export default function ParentDashboard() {
       }
     } catch (err) {
       console.error("Dashboard Fetch Error:", err)
+      toast.error("Failed to load dashboard data.")
     } finally {
-      setLoading(false)
+      setIsInitializing(false) // Release the UI lock once secure
     }
-  }, [])
+  }, [router])
 
   useEffect(() => {
     fetchDashboardData()
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
-      if (event === 'SIGNED_OUT') window.location.href = '/parent-login'
+      if (event === 'SIGNED_OUT') router.push('/parent-login')
     })
     return () => authListener.subscription.unsubscribe()
-  }, [fetchDashboardData])
+  }, [fetchDashboardData, router])
 
   const handleShowBreakdown = (plan: any, child: any) => {
     const isFirstPayment = Number(plan.amount_paid) === 0
@@ -143,15 +144,17 @@ export default function ParentDashboard() {
         message: `Your payment of ₦${paystackConfig?.amount.toLocaleString()} for ${paystackConfig?.studentName} was received successfully. Receipt: ${reference}`
       })
 
-      alert(`Payment confirmed! Receipt No: ${reference}`)
+      toast.success(`Payment confirmed! Receipt No: ${reference}`) 
       setPaystackConfig(null)
       fetchDashboardData() 
     } catch (err) {
       console.error("Update error:", err)
+      toast.error("Payment recorded, but there was an issue updating your dashboard.")
     }
   }
 
-  if (loading) return <div className="p-10 text-center text-sm font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Authenticating Secure Session...</div>
+  // Lock the UI until initialization is complete
+  if (isInitializing) return <div className="p-10 text-center text-sm font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Authenticating Secure Session...</div>
 
   return (
     <div className="w-full max-w-6xl mx-auto animate-in fade-in pb-24 relative">
@@ -249,7 +252,7 @@ export default function ParentDashboard() {
         />
       )}
 
-      {/* FIX: STICKY HEADER SECTION */}
+      {/* STICKY HEADER SECTION */}
       <div className="sticky top-0 z-40 bg-gray-50/95 backdrop-blur-md pt-4 sm:pt-6 lg:pt-10 pb-4 px-4 sm:px-6 lg:px-10 border-b border-gray-200/50 mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
           <div className="flex items-center gap-4">

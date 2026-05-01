@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
+import toast from 'react-hot-toast'
 import { Building2, MapPin, Mail, Phone, Lock, ArrowRight, ChevronDown } from 'lucide-react'
 
 const NIGERIAN_STATES = [
@@ -17,7 +18,25 @@ const NIGERIAN_STATES = [
 export default function SchoolSignup() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isInitializing, setIsInitializing] = useState(true)
   const [form, setForm] = useState({ schoolName: '', email: '', phone: '', state: '', password: '' })
+
+  // Auto-redirect if already logged in
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          router.push('/school')
+        }
+      } catch (err) {
+        console.error("Auth check error", err)
+      } finally {
+        setIsInitializing(false)
+      }
+    }
+    checkSession()
+  }, [router])
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,15 +58,17 @@ export default function SchoolSignup() {
 
         if (insertError) throw insertError
         
-        alert('Application submitted! Pending Admin approval.')
+        toast.success('Application submitted! Pending Admin approval.')
         router.push('/school-login')
       }
     } catch (err: any) {
-      alert(`Error Details: ${JSON.stringify(err)}`)
+      toast.error(err.message || "An error occurred during sign up.")
     } finally {
       setIsSubmitting(false)
     }
   }
+
+  if (isInitializing) return <div className="min-h-screen bg-gray-50 flex items-center justify-center font-bold text-[#0a1128] uppercase tracking-widest animate-pulse">Checking Session...</div>
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center p-4 sm:p-6 animate-in fade-in font-sans relative overflow-hidden pb-20">

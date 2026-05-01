@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase' 
+import toast from 'react-hot-toast'
 
 // --- NEW LUCIDE ICONS ---
 import { 
@@ -13,6 +14,7 @@ import {
 
 export default function SchoolSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
@@ -28,12 +30,14 @@ export default function SchoolSidebar() {
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
+    const toastId = toast.loading("Signing out...")
     try {
       await supabase.auth.signOut()
-      // Force a hard browser redirect instead of a soft Next.js route to wipe local cache
-      window.location.href = '/school-login'
+      router.push('/school-login')
+      toast.success("Signed out successfully", { id: toastId })
     } catch (error) {
       console.error('Error logging out:', error)
+      toast.error("Failed to sign out.", { id: toastId })
       setIsLoggingOut(false)
     }
   }

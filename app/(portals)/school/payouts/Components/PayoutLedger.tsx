@@ -1,6 +1,7 @@
 'use client'
 
 import { jsPDF } from 'jspdf'
+import toast from 'react-hot-toast'
 import { Download, CheckCircle2, Clock, AlertCircle, FileX, Landmark, ReceiptText } from 'lucide-react'
 
 export default function PayoutLedger({ withdrawalHistory }: { withdrawalHistory: any[] }) {
@@ -63,10 +64,12 @@ export default function PayoutLedger({ withdrawalHistory }: { withdrawalHistory:
       doc.text('This is a system-generated document reflecting verified manual banking operations.', 105, 280, { align: 'center' })
 
       doc.save(`PayTerm_Settlement_${requestRow.bank_reference || requestRow.id.substring(0,6)}.pdf`)
+      
+      toast.success("Receipt downloaded!")
 
     } catch (err) {
-      alert("Failed to generate PDF. Please try on a desktop browser.")
       console.error(err)
+      toast.error("Failed to generate PDF. Please try on a desktop browser.")
     }
   }
 

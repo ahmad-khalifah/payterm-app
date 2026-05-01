@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
+import toast from 'react-hot-toast'
 
 // --- NEW LUCIDE ICONS ---
 import { 
@@ -10,93 +12,135 @@ import {
 } from 'lucide-react'
 
 export default function ReportsPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [isInitializing, setIsInitializing] = useState(true) // Session lock
   const [students, setStudents] = useState<any[]>([])
   
   const [targetSchool, setTargetSchool] = useState<string | null>(null)
   const [schoolId, setSchoolId] = useState<string | null>(null) 
-  const [isInitializing, setIsInitializing] = useState(true)
 
   useEffect(() => {
+    let isMounted = true
+
     const initializePage = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        
+        if (authError || !user) {
+          router.push('/school-login')
+          return
+        }
 
-        const { data: schoolProfile } = await supabase
+        const { data: schoolProfile, error: profileError } = await supabase
           .from('partner_schools')
           .select('name')
           .eq('id', user.id)
           .single()
 
-        if (schoolProfile) {
+        if (profileError || !schoolProfile) {
+          router.push('/school-login')
+          return
+        }
+
+        if (isMounted) {
           setTargetSchool(schoolProfile.name)
           setSchoolId(user.id) 
         }
       } catch (err) {
         console.error("Auth Error:", err)
+        toast.error("Could not authenticate session.")
       } finally {
-        setIsInitializing(false)
+        if (isMounted) setIsInitializing(false)
       }
     }
+    
     initializePage()
-  }, [])
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') router.push('/school-login')
+    })
+
+    return () => {
+      isMounted = false
+      authListener.subscription.unsubscribe()
+    }
+  }, [router])
 
   useEffect(() => {
     if (!schoolId) return
+    let isMounted = true
 
     const fetchReportData = async () => {
-      const { data, error } = await supabase
-        .from('students')
-        .select(`
-          full_name, student_class, enrollment_status,
-          parents ( full_name, phone ),
-          active_plans ( total_fee, amount_paid, status, next_payment_date )
-        `)
-        .eq('school_id', schoolId) 
-      
-      if (error) console.error("Report Fetch Error:", error.message)
-      if (data) setStudents(data)
-      setLoading(false)
+      try {
+        const { data, error } = await supabase
+          .from('students')
+          .select(`
+            full_name, student_class, enrollment_status,
+            parents ( full_name, phone ),
+            active_plans ( total_fee, amount_paid, status, next_payment_date )
+          `)
+          .eq('school_id', schoolId) 
+        
+        if (error) throw error
+        if (isMounted && data) setStudents(data)
+      } catch (err: any) {
+        console.error("Report Fetch Error:", err.message)
+        toast.error("Failed to load report data.")
+      } finally {
+        if (isMounted) setLoading(false)
+      }
     }
+    
     fetchReportData()
+
+    return () => {
+      isMounted = false
+    }
   }, [schoolId])
 
   const downloadCSV = () => {
-    const headers = ["Student Name", "Class", "Parent Name", "Parent Phone", "Total Fee", "Amount Paid", "Outstanding 40% Balance", "Status", "Due Date"]
-    
-    const rows = students.map(s => {
-      const plan = s.active_plans[0]
-      const parentData = Array.isArray(s.parents) ? s.parents[0] : s.parents
-      const outstanding = plan ? (Number(plan.total_fee) - Number(plan.amount_paid)) : 0
+    try {
+      const headers = ["Student Name", "Class", "Parent Name", "Parent Phone", "Total Fee", "Amount Paid", "Outstanding 40% Balance", "Status", "Due Date"]
+      
+      const rows = students.map(s => {
+        const plan = s.active_plans[0]
+        const parentData = Array.isArray(s.parents) ? s.parents[0] : s.parents
+        const outstanding = plan ? (Number(plan.total_fee) - Number(plan.amount_paid)) : 0
 
-      return [
-        s.full_name,
-        s.student_class,
-        parentData?.full_name || 'N/A',
-        parentData?.phone || 'N/A',
-        plan?.total_fee || 0,
-        plan?.amount_paid || 0,
-        outstanding,
-        plan?.status || 'N/A',
-        plan?.next_payment_date || 'N/A'
-      ]
-    })
+        return [
+          s.full_name,
+          s.student_class,
+          parentData?.full_name || 'N/A',
+          parentData?.phone || 'N/A',
+          plan?.total_fee || 0,
+          plan?.amount_paid || 0,
+          outstanding,
+          plan?.status || 'N/A',
+          plan?.next_payment_date || 'N/A'
+        ]
+      })
 
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + headers.join(",") + "\n" 
-      + rows.map(e => e.join(",")).join("\n")
+      const csvContent = "data:text/csv;charset=utf-8," 
+        + headers.join(",") + "\n" 
+        + rows.map(e => e.join(",")).join("\n")
 
-    const encodedUri = encodeURI(csvContent)
-    const link = document.createElement("a")
-    link.setAttribute("href", encodedUri)
-    link.setAttribute("download", `PayTerm_Arrears_Report_${new Date().toISOString().split('T')[0]}.csv`)
-    document.body.appendChild(link)
-    link.click()
+      const encodedUri = encodeURI(csvContent)
+      const link = document.createElement("a")
+      link.setAttribute("href", encodedUri)
+      link.setAttribute("download", `PayTerm_Arrears_Report_${new Date().toISOString().split('T')[0]}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      
+      toast.success("Report downloaded successfully!")
+    } catch (err) {
+      toast.error("Failed to generate CSV export.")
+    }
   }
 
   if (isInitializing || loading) return (
-    <div className="p-10 text-center font-bold text-[#0a1128] tracking-widest uppercase h-full flex items-center justify-center animate-pulse">
+    <div className="p-10 text-center font-bold text-[#0a1128] tracking-widest uppercase h-screen flex items-center justify-center animate-pulse">
       Compiling secure reports...
     </div>
   )

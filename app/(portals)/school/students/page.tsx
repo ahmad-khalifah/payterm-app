@@ -1,19 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
+import toast from 'react-hot-toast'
 
-// --- NEW LUCIDE ICONS ---
 import { 
   Users, Search, Filter, Printer, GraduationCap, 
   CalendarDays, CheckCircle2, XCircle, UserMinus, 
-  ChevronDown, FileSearch 
+  ChevronDown, FileSearch, AlertTriangle
 } from 'lucide-react'
 
 export default function StudentsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [isInitializing, setIsInitializing] = useState(true) // Session Lock
   const [students, setStudents] = useState<any[]>([])
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -22,7 +23,7 @@ export default function StudentsPage() {
   
   const [classFilter, setClassFilter] = useState<string>('All')
 
-  const fetchStudents = async (idToFetch: string) => {
+  const fetchStudents = useCallback(async (idToFetch: string) => {
     try {
       const { data, error } = await supabase
         .from('students')
@@ -36,27 +37,25 @@ export default function StudentsPage() {
       if (data) setStudents(data)
     } catch (err: any) {
       console.error("Fetch error:", JSON.stringify(err, null, 2) || err.message)
+      toast.error("Failed to load student roster.")
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     let isMounted = true
 
     const initializePage = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
-        let activeUserId = session?.user?.id
-
-        if (!activeUserId) {
-          const { data: { user }, error: userError } = await supabase.auth.getUser()
-          if (userError || !user) {
-            window.location.href = '/school-login'
-            return
-          }
-          activeUserId = user.id
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        
+        if (userError || !user) {
+          router.push('/school-login')
+          return
         }
+        
+        const activeUserId = user.id
 
         const { data: schoolProfile, error: profileError } = await supabase
           .from('partner_schools')
@@ -67,42 +66,71 @@ export default function StudentsPage() {
         if (profileError) throw profileError
 
         if (!schoolProfile) {
-          window.location.href = '/school-login'
+          router.push('/school-login')
           return
         }
 
         if (isMounted) {
           setTargetSchool(schoolProfile.name)
           setSchoolId(activeUserId)
-          fetchStudents(activeUserId)
+          await fetchStudents(activeUserId)
         }
       } catch (err) {
         console.error("Auth Error:", err)
-        if (isMounted) setLoading(false)
+        toast.error("Authentication failed. Please log in again.")
+      } finally {
+        if (isMounted) setIsInitializing(false)
       }
     }
 
     initializePage()
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
-      if (event === 'SIGNED_OUT') {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-          window.location.href = '/school-login'
-        }
-      }
+      if (event === 'SIGNED_OUT') router.push('/school-login')
     })
 
     return () => {
       isMounted = false
       authListener.subscription.unsubscribe()
     }
-  }, [router])
+  }, [router, fetchStudents])
 
-  const handleWithdraw = async (studentId: string, studentName: string) => {
-    if (!window.confirm(`Are you sure you want to mark ${studentName} as Withdrawn? They will no longer appear on active payment ledgers.`)) return
-    
+  // Custom Confirmation Toast for Withdrawals
+  const confirmWithdrawal = (studentId: string, studentName: string) => {
+    toast((t) => (
+      <div className="flex flex-col gap-3 max-w-sm">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-bold text-[#0a1128] text-sm">Withdraw Student?</h3>
+            <p className="text-xs text-gray-500 mt-1">Are you sure you want to mark <strong>{studentName}</strong> as Withdrawn? They will be removed from active ledgers.</p>
+          </div>
+        </div>
+        <div className="flex gap-2 justify-end mt-2">
+          <button 
+            onClick={() => toast.dismiss(t.id)}
+            className="px-3 py-1.5 text-xs font-bold text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-md transition-colors"
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={() => {
+              toast.dismiss(t.id)
+              executeWithdrawal(studentId)
+            }}
+            className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors shadow-sm"
+          >
+            Yes, Withdraw
+          </button>
+        </div>
+      </div>
+    ), { duration: Infinity })
+  }
+
+  const executeWithdrawal = async (studentId: string) => {
     setActionLoading(studentId)
+    const loadingToast = toast.loading("Processing withdrawal...")
+    
     try {
       const { error } = await supabase
         .from('students')
@@ -119,9 +147,10 @@ export default function StudentsPage() {
         .update({ status: 'Withdrawn' })
         .eq('student_id', studentId)
 
+      toast.success("Student successfully withdrawn.", { id: loadingToast })
       if (schoolId) fetchStudents(schoolId) 
     } catch (err: any) { 
-      alert(`Withdrawal Error: ${err.message}`) 
+      toast.error(`Withdrawal Error: ${err.message}`, { id: loadingToast })
     } finally { 
       setActionLoading(null) 
     }
@@ -135,7 +164,7 @@ export default function StudentsPage() {
     return matchesSearch && matchesClass
   })
 
-  if (loading || !targetSchool) return <div className="p-10 text-center text-sm font-bold text-[#0a1128] uppercase tracking-widest h-screen animate-pulse flex items-center justify-center">Loading Roster...</div>
+  if (isInitializing || loading || !targetSchool) return <div className="p-10 text-center text-sm font-bold text-[#0a1128] uppercase tracking-widest h-screen animate-pulse flex items-center justify-center">Authenticating Secure Session...</div>
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in pb-20 relative">
@@ -260,7 +289,7 @@ export default function StudentsPage() {
                       <td className="p-5 text-right align-top print:hidden">
                         {(status === 'Active' || status === 'Verified') ? (
                           <button 
-                            onClick={() => handleWithdraw(student.id, student.full_name)}
+                            onClick={() => confirmWithdrawal(student.id, student.full_name)}
                             disabled={actionLoading === student.id}
                             className="bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-xl text-[11px] font-bold hover:border-red-200 hover:bg-red-50 hover:text-red-600 shadow-sm active:scale-95 transition-all disabled:opacity-50 inline-flex items-center gap-1.5 opacity-80 group-hover:opacity-100"
                           >

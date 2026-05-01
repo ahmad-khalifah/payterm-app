@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../../lib/supabase'
+import toast from 'react-hot-toast'
 import { RefreshCcw, User, MessageSquare, ChevronDown, Send } from 'lucide-react'
 
 export default function RestructurePage() {
   const [loading, setLoading] = useState(true)
+  const [isInitializing, setIsInitializing] = useState(true) // Session lock
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [students, setStudents] = useState<any[]>([])
   const [selectedStudent, setSelectedStudent] = useState('')
@@ -14,8 +16,11 @@ export default function RestructurePage() {
   useEffect(() => {
     const fetchStudents = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        
+        if (authError || !user) {
+          return // Handled by layout/middleware
+        }
 
         const { data, error } = await supabase
           .from('students')
@@ -30,8 +35,10 @@ export default function RestructurePage() {
         }
       } catch (err: any) {
         console.error("Error fetching students:", err.message)
+        toast.error("Failed to load students. Please refresh.")
       } finally {
         setLoading(false)
+        setIsInitializing(false)
       }
     }
     
@@ -40,12 +47,14 @@ export default function RestructurePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedStudent || !reason.trim()) return
+    if (!selectedStudent || !reason.trim()) {
+      return toast.error("Please fill in all fields.")
+    }
 
     setIsSubmitting(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error("Not authenticated")
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) throw new Error("Your session expired. Please refresh the page.")
 
       // @ts-ignore: Temporary bypass until support_tickets table is added to Supabase
       const { error } = await supabase
@@ -58,18 +67,24 @@ export default function RestructurePage() {
           status: 'Open'
         } as any)
 
-      if (error) throw error
+      if (error) {
+         // Specific error handling if the table hasn't been created yet
+         if (error.code === '42P01') { 
+            throw new Error("Support system is currently offline for maintenance.")
+         }
+         throw error
+      }
       
-      alert("Your request has been submitted successfully. Our support team will contact you shortly.")
+      toast.success("Your request has been submitted successfully. Our support team will contact you shortly.")
       setReason('')
     } catch (err: any) {
-      alert(`Submission failed: ${err.message}`)
+      toast.error(err.message || "Submission failed.")
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  if (loading) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest h-full flex items-center justify-center animate-pulse">Loading...</div>
+  if (isInitializing || loading) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Loading...</div>
 
   return (
     <div className="w-full max-w-2xl mx-auto md:p-4 lg:p-8 animate-in fade-in pb-20">
@@ -84,7 +99,6 @@ export default function RestructurePage() {
       </div>
 
       <div className="bg-white md:rounded-3xl border-y md:border border-gray-100 shadow-xl shadow-blue-900/5 overflow-hidden relative">
-        {/* Subtle background glow */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50/50 rounded-full blur-3xl pointer-events-none -mt-20 -mr-20"></div>
 
         <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-6 relative z-10">

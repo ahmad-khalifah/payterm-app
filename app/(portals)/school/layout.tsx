@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
+import toast from 'react-hot-toast'
 import '../../globals.css'
 
 import { 
@@ -30,11 +31,14 @@ export default function SchoolLayout({
   ]
 
   const handleLogout = async () => {
+    toast.loading("Signing out...", { id: 'school-logout' })
     try {
       await supabase.auth.signOut()
-      window.location.href = '/school-login'
+      router.push('/school-login')
+      toast.success("Signed out successfully", { id: 'school-logout' })
     } catch (error) {
       console.error('Error logging out:', error)
+      toast.error("Failed to sign out.", { id: 'school-logout' })
     }
   }
 

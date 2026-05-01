@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
+import toast from 'react-hot-toast'
 import '../../globals.css'
 
 import { Home, User, Bell, History, RefreshCcw, LifeBuoy, LogOut, Menu, X } from 'lucide-react'
@@ -27,11 +28,14 @@ export default function ParentLayout({
   ]
 
   const handleLogout = async () => {
+    toast.loading("Signing out...", { id: 'logout' })
     try {
       await supabase.auth.signOut()
       router.push('/parent-login')
+      toast.success("Signed out successfully", { id: 'logout' })
     } catch (error) {
       console.error('Error logging out:', error)
+      toast.error("Failed to sign out.", { id: 'logout' })
     }
   }
 
@@ -39,15 +43,12 @@ export default function ParentLayout({
     <div className="flex h-screen w-full bg-gray-50 font-sans overflow-hidden text-[#0a1128] selection:bg-blue-100 selection:text-blue-900 relative">
       
       {/* 🚀 THE NOISE LAYER 🚀 */}
-      {/* This creates the tactile, frosted-paper feel across the entire app */}
       <div 
-  className="pointer-events-none fixed inset-0 z-0 opacity-[0.04] mix-blend-overlay"
-  style={{ 
-    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
-  }}
-></div>
-      
-      {/* Everything below here gets bumped up in the z-index to sit above the background but below the mobile nav */}
+        className="pointer-events-none fixed inset-0 z-0 opacity-[0.04] mix-blend-overlay"
+        style={{ 
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+        }}
+      ></div>
       
       {/* MOBILE TOP NAVIGATION BAR */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-[#0a1128] text-white flex items-center justify-between px-4 z-50 shadow-md">
