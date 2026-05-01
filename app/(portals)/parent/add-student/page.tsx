@@ -258,7 +258,6 @@ export default function AddStudentPage() {
                     >
                       <option value="" disabled>Select year</option>
                       {/* FIX: Values now perfectly match the Fee Setup strings */}
-                      <option value="2025/2026">2025/2026</option>
                       <option value="2026/2027">2026/2027</option>
                       <option value="2027/2028">2027/2028</option>
                     </select>
