@@ -14,13 +14,23 @@ export default function SchoolLogin() {
   const [loading, setLoading] = useState(false)
   const [isInitializing, setIsInitializing] = useState(true)
 
-  // Auto-redirect if already logged in
+  // Auto-redirect if already logged in as an active school
   useEffect(() => {
     const checkSession = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
-          router.push('/school')
+          const { data: schoolData } = await supabase
+            .from('partner_schools')
+            .select('status')
+            .eq('id', user.id)
+            .maybeSingle()
+            
+          if (schoolData && schoolData.status === 'Active') {
+            router.push('/school')
+          } else {
+            await supabase.auth.signOut() // Kills the infinite loop
+          }
         }
       } catch (err) {
         console.error("Auth check error", err)
