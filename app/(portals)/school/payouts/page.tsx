@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation' 
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
-
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 import { Wallet, ArrowDownCircle, AlertCircle } from 'lucide-react'
 
 import WithdrawalForm from './Components/WithdrawalForm'
@@ -96,6 +96,7 @@ export default function PayoutsPage() {
       console.error("Fetch Error:", err)
       if (isMounted) setFetchError(err.message)
       toast.error("Failed to sync payout ledger.")
+      useRealtimeSync(() => fetchPayoutData(uuid, name, tier, isMounted))
     } finally {
       if (isMounted) setLoading(false)
     }
@@ -208,6 +209,7 @@ export default function PayoutsPage() {
             onSuccess={() => {
               if (schoolId && targetSchool) {
                 fetchPayoutData(schoolId, targetSchool, schoolTier, true)
+                useRealtimeSync(() => fetchPayoutData(schoolId, targetSchool, schoolTier, true))
               }
             }}
           />

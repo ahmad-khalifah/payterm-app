@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import toast from 'react-hot-toast'
 import '../../globals.css'
-
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 import { Home, User, Bell, History, RefreshCcw, LifeBuoy, LogOut, Menu, X } from 'lucide-react'
 
 export default function ParentLayout({
@@ -38,6 +38,10 @@ export default function ParentLayout({
       toast.error("Failed to sign out.", { id: 'logout' })
     }
   }
+
+  useRealtimeSync(() => {
+    console.log('Realtime sync triggered')
+  })
 
   return (
     <div className="flex h-screen w-full bg-gray-50 font-sans overflow-hidden text-[#0a1128] selection:bg-blue-100 selection:text-blue-900 relative">

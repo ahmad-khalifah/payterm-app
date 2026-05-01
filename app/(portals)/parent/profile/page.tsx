@@ -5,6 +5,7 @@ import { supabase } from '../../../../lib/supabase' // Adjust path if needed
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { LogOut, User, Mail, Phone, ShieldCheck } from 'lucide-react'
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 
 export default function ParentProfilePage() {
   const router = useRouter()
@@ -44,6 +45,7 @@ export default function ParentProfilePage() {
     }
 
     fetchSession()
+    useRealtimeSync(() => fetchSession())
   }, [router])
 
   const handleLogout = async () => {

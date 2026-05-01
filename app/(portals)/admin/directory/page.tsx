@@ -1,26 +1,30 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
+import toast from 'react-hot-toast'
 
 // --- NEW LUCIDE ICONS ---
 import { Users, Search, User, Mail, Phone, CheckCircle2, FileSearch, Calendar } from 'lucide-react'
 
 export default function AdminParentsDirectory() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [isInitializing, setIsInitializing] = useState(true) // HQ Session Lock
   const [parents, setParents] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
-  const [error, setError] = useState('')
 
-  const fetchAllParents = async () => {
+  const fetchAllParents = useCallback(async (isMounted: boolean = true) => {
     try {
+      if (isMounted) setLoading(true)
       const { data, error } = await supabase
         .from('parents')
         .select('id, full_name, email, phone, created_at')
         
       if (error) throw error
 
-      if (data) {
+      if (data && isMounted) {
         const sortedData = data.sort((a, b) => {
           if (!a.created_at || !b.created_at) return 0;
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -29,15 +33,61 @@ export default function AdminParentsDirectory() {
       }
     } catch (err: any) {
       console.error("Error fetching parents:", err.message)
-      setError("Failed to load parents directory. Check console for details.")
+      if (isMounted) toast.error("Failed to load parents directory.")
     } finally {
-      setLoading(false)
+      if (isMounted) setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
-    fetchAllParents()
-  }, [])
+    let isMounted = true
+
+    const initializePage = async () => {
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        
+        if (authError || !user) {
+          router.push('/admin-login')
+          return
+        }
+
+        // CRITICAL HQ VERIFICATION
+        const { data: hqData } = await supabase
+          .from('hq_users')
+          .select('role')
+          .eq('user_email', user.email as string || '')
+          .maybeSingle()
+
+        if (!hqData) {
+          await supabase.auth.signOut()
+          router.push('/admin-login')
+          return
+        }
+
+        if (isMounted) {
+          await fetchAllParents(isMounted)
+        }
+
+      } catch (err) {
+        console.error("Initialization Error:", err)
+        toast.error("HQ Authentication failed.")
+        if (isMounted) setLoading(false)
+      } finally {
+        if (isMounted) setIsInitializing(false)
+      }
+    }
+
+    initializePage()
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') router.push('/admin-login')
+    })
+
+    return () => {
+      isMounted = false
+      authListener.subscription.unsubscribe()
+    }
+  }, [router, fetchAllParents])
 
   // Client-side search filtering
   const filteredParents = parents.filter(p => {
@@ -45,8 +95,7 @@ export default function AdminParentsDirectory() {
     return searchString.includes(searchQuery.toLowerCase())
   })
 
-  if (loading) return <div className="p-10 text-center text-sm font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Loading Directory...</div>
-  if (error) return <div className="p-10 text-center text-red-600 text-sm font-bold">{error}</div>
+  if (isInitializing || loading) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest text-sm h-screen flex items-center justify-center animate-pulse">Initializing HQ Terminal...</div>
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in pb-20 relative">

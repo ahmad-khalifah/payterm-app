@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
-
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 // --- NEW LUCIDE ICONS ---
 import { 
   BarChart3, Download, Printer, FileSearch, User, 
@@ -93,7 +93,7 @@ export default function ReportsPage() {
     }
     
     fetchReportData()
-
+    useRealtimeSync(() => fetchReportData())
     return () => {
       isMounted = false
     }
@@ -134,6 +134,7 @@ export default function ReportsPage() {
       link.remove()
       
       toast.success("Report downloaded successfully!")
+      useRealtimeSync(() => downloadCSV())
     } catch (err) {
       toast.error("Failed to generate CSV export.")
     }

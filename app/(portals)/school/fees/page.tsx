@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
-
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 import { 
   Landmark, ChevronDown, Calendar, Lock, 
   Receipt, GraduationCap, CheckCircle2, FileQuestion, Library
@@ -152,6 +152,7 @@ export default function FeesManagementPage() {
     }
 
     fetchClassFees()
+    useRealtimeSync(() => fetchClassFees())
     
     return () => { isMounted = false }
   }, [selectedClass, selectedSession, selectedTerm, targetSchool])
@@ -199,7 +200,7 @@ export default function FeesManagementPage() {
       
       // Refresh the ledger table automatically after saving
       fetchExistingFees(targetSchool)
-      
+      useRealtimeSync(() => fetchExistingFees(targetSchool))
     } catch (err: any) {
       toast.error(`Error saving fees: ${err.message}`, { id: loadingToast })
     } finally {

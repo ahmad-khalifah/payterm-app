@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
+import toast from 'react-hot-toast'
 
 import { 
   Banknote, ShieldCheck, X, Building2, Landmark, 
@@ -9,7 +11,9 @@ import {
 } from 'lucide-react'
 
 export default function AdminPayoutsPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [isInitializing, setIsInitializing] = useState(true) // HQ Session Lock
   const [requests, setRequests] = useState<any[]>([])
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [isLive, setIsLive] = useState(false)
@@ -20,7 +24,7 @@ export default function AdminPayoutsPage() {
   const [confirmAmount, setConfirmAmount] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async (isMounted: boolean = true) => {
     try {
       const { data, error } = await supabase
         .from('withdrawal_requests')
@@ -28,42 +32,94 @@ export default function AdminPayoutsPage() {
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      if (data) setRequests(data)
+      if (data && isMounted) setRequests(data)
     } catch (err) {
       console.error("Fetch Error:", err)
+      if (isMounted) toast.error("Failed to sync payout ledger.")
     } finally {
-      setLoading(false)
+      if (isMounted) setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
-    fetchRequests()
+    let isMounted = true
+
+    const initializePage = async () => {
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        
+        if (authError || !user) {
+          router.push('/admin-login')
+          return
+        }
+
+        // CRITICAL HQ VERIFICATION
+        const { data: hqData } = await supabase
+          .from('hq_users')
+          .select('role')
+          .eq('user_email', user.email as string || '')
+          .maybeSingle()
+
+        if (!hqData) {
+          await supabase.auth.signOut()
+          router.push('/admin-login')
+          return
+        }
+
+        if (isMounted) {
+          await fetchRequests(isMounted)
+        }
+
+      } catch (err) {
+        console.error("Initialization Error:", err)
+        toast.error("HQ Authentication failed.")
+        if (isMounted) setLoading(false)
+      } finally {
+        if (isMounted) setIsInitializing(false)
+      }
+    }
+
+    initializePage()
 
     const channel = supabase
       .channel('admin-payouts-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawal_requests' }, (payload) => {
-          fetchRequests() 
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawal_requests' }, () => {
+         if (isMounted) fetchRequests(isMounted) 
       })
       .subscribe((status) => {
-        if (status === 'SUBSCRIBED') setIsLive(true)
-        if (status === 'CLOSED' || status === 'CHANNEL_ERROR') setIsLive(false)
+        if (isMounted) {
+          if (status === 'SUBSCRIBED') setIsLive(true)
+          if (status === 'CLOSED' || status === 'CHANNEL_ERROR') setIsLive(false)
+        }
       })
 
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') router.push('/admin-login')
+    })
+
     return () => {
+      isMounted = false
       supabase.removeChannel(channel)
+      authListener.subscription.unsubscribe()
     }
-  }, [])
+    
+  }, [router, fetchRequests])
 
   const handleApproveRequest = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!activeRequest) return
 
     if (Number(confirmAmount) !== Number(activeRequest.amount)) {
-      return alert("SECURITY HALT: The amount you typed does not match the requested amount.")
+      toast.error("SECURITY HALT: The amount you typed does not match the requested amount.")
+      return
     }
-    if (!refNumber.trim()) return alert("Bank Reference Number is required.")
+    if (!refNumber.trim()) {
+      toast.error("Bank Reference Number is required.")
+      return
+    }
 
     setIsSubmitting(true)
+    const loadingToast = toast.loading("Authorizing disbursement...")
     try {
       const { data: { user } } = await supabase.auth.getUser()
       const { error } = await supabase.from('withdrawal_requests').update({
@@ -71,33 +127,56 @@ export default function AdminPayoutsPage() {
         }).eq('id', activeRequest.id)
 
       if (error) throw error
-      alert(`Success! Withdrawal is marked as Approved.`)
+      toast.success("Success! Withdrawal is marked as Approved.", { id: loadingToast })
       closeModal()
       fetchRequests()
-    } catch (err: any) { alert(`Approval Error: ${err.message}`) } 
-    finally { setIsSubmitting(false) }
+    } catch (err: any) { 
+      toast.error(`Approval Error: ${err.message}`, { id: loadingToast }) 
+    } finally { 
+      setIsSubmitting(false) 
+    }
   }
 
   const openModal = (request: any) => { setActiveRequest(request); setRefNumber(''); setConfirmAmount(''); }
   const closeModal = () => { setActiveRequest(null); setRefNumber(''); setConfirmAmount(''); }
 
-  const handleReject = async (id: string, schoolName: string) => {
-    const reason = window.prompt(`Enter reason for rejecting ${schoolName}'s withdrawal request:`)
-    if (!reason) return
-    setProcessingId(id)
-    try {
-      const { error } = await supabase.from('withdrawal_requests').update({ status: 'Rejected' }).eq('id', id)
-      if (error) throw error
-      fetchRequests()
-    } catch (err: any) { alert(`Rejection Failed: ${err.message}`) } 
-    finally { setProcessingId(null) }
+  const handleReject = (id: string, schoolName: string) => {
+    toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-bold text-[#0a1128]">Reject {schoolName}'s Payout?</p>
+          <p className="text-xs text-gray-500">This will decline the withdrawal request.</p>
+          <div className="flex gap-2 mt-1">
+            <button 
+              onClick={async () => {
+                toast.dismiss(t.id)
+                setProcessingId(id)
+                const loadingToast = toast.loading(`Rejecting request...`)
+                try {
+                  const { error } = await supabase.from('withdrawal_requests').update({ status: 'Rejected' }).eq('id', id)
+                  if (error) throw error
+                  toast.success("Request rejected.", { id: loadingToast })
+                  fetchRequests()
+                } catch (err: any) { 
+                  toast.error(`Rejection failed: ${err.message}`, { id: loadingToast }) 
+                } finally { setProcessingId(null) }
+              }}
+              className="bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-700 transition-colors"
+            >
+              Yes, Reject
+            </button>
+            <button onClick={() => toast.dismiss(t.id)} className="bg-gray-100 text-[#0a1128] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200">Cancel</button>
+          </div>
+        </div>
+      ), { duration: Infinity }
+    )
   }
 
   const pendingRequests = requests.filter(r => r.status === 'Pending')
   const totalPendingVolume = pendingRequests.reduce((sum, r) => sum + Number(r.amount), 0)
   const totalPaidVolume = requests.filter(r => r.status === 'Paid' || r.status === 'Approved').reduce((sum, r) => sum + Number(r.amount), 0)
 
-  if (loading) return <div className="p-10 text-center font-bold text-[#0a1128] text-sm h-screen flex items-center justify-center uppercase tracking-widest animate-pulse">Loading Payout Ledger...</div>
+  if (isInitializing || loading) return <div className="p-10 text-center font-bold text-[#0a1128] text-sm h-screen flex items-center justify-center uppercase tracking-widest animate-pulse">Initializing HQ Terminal...</div>
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto animate-in fade-in pb-20 relative">

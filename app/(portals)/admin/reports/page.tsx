@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
+import toast from 'react-hot-toast'
 
 import { 
   LayoutDashboard, TrendingUp, BarChart3, 
@@ -16,7 +18,9 @@ import {
 type MetricType = 'Revenue' | 'Volume' | 'Deployed' | 'Arrears'
 
 export default function AdminReportsPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [isInitializing, setIsInitializing] = useState(true) // Session lock
   const [activeChart, setActiveChart] = useState<MetricType>('Revenue')
   
   const [metrics, setMetrics] = useState({
@@ -32,6 +36,8 @@ export default function AdminReportsPage() {
   const [chartData, setChartData] = useState<any[]>([])
 
   useEffect(() => {
+    let isMounted = true
+
     const fetchPlatformData = async () => {
       try {
         const { data: plansData, error: plansError } = await supabase
@@ -49,7 +55,7 @@ export default function AdminReportsPage() {
 
         const { data: schoolsData, error: schoolsError } = await supabase
           .from('partner_schools')
-          .select('id, name')
+          .select('id, name, tier')
 
         if (schoolsError) throw schoolsError
 
@@ -60,7 +66,7 @@ export default function AdminReportsPage() {
           deployed = withdrawalsData.reduce((sum, req) => sum + Number(req.amount), 0)
         }
 
-        // --- GRAPH DATA INITIALIZATION (Now tracking all 4 metrics) ---
+        // --- GRAPH DATA INITIALIZATION ---
         const monthlyMap = new Map()
         for (let i = 5; i >= 0; i--) {
           const d = new Date()
@@ -127,21 +133,68 @@ export default function AdminReportsPage() {
           })
         }
 
-        setMetrics({ totalVolume: volume, platformRevenue: revenue, capitalDeployed: deployed, totalArrears: arrears, activeSchools: schoolMap.size, totalParents: parentCount })
-        setSchoolPerformance(Array.from(schoolMap.values()).sort((a, b) => b.revenueGenerated - a.revenueGenerated))
-        
-        const sortedKeys = Array.from(monthlyMap.keys()).sort()
-        setChartData(sortedKeys.map(k => monthlyMap.get(k)))
+        if (isMounted) {
+          setMetrics({ totalVolume: volume, platformRevenue: revenue, capitalDeployed: deployed, totalArrears: arrears, activeSchools: schoolMap.size, totalParents: parentCount })
+          setSchoolPerformance(Array.from(schoolMap.values()).sort((a, b) => b.revenueGenerated - a.revenueGenerated))
+          
+          const sortedKeys = Array.from(monthlyMap.keys()).sort()
+          setChartData(sortedKeys.map(k => monthlyMap.get(k)))
+        }
 
       } catch (err: any) {
         console.error("Reports Fetch Error:", err.message)
+        toast.error("Failed to compile financial reports.")
       } finally {
-        setLoading(false)
+        if (isMounted) setLoading(false)
       }
     }
 
-    fetchPlatformData()
-  }, [])
+    const initializePage = async () => {
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        
+        if (authError || !user) {
+          router.push('/admin-login')
+          return
+        }
+
+        // CRITICAL HQ VERIFICATION
+        const { data: hqData } = await supabase
+          .from('hq_users')
+          .select('role')
+          .eq('user_email', user.email)
+          .maybeSingle()
+
+        if (!hqData) {
+          await supabase.auth.signOut()
+          router.push('/admin-login')
+          return
+        }
+
+        if (isMounted) {
+          await fetchPlatformData()
+        }
+
+      } catch (err) {
+        console.error("Initialization Error:", err)
+        toast.error("HQ Authentication failed.")
+        if (isMounted) setLoading(false)
+      } finally {
+        if (isMounted) setIsInitializing(false)
+      }
+    }
+
+    initializePage()
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') router.push('/admin-login')
+    })
+
+    return () => {
+      isMounted = false
+      authListener.subscription.unsubscribe()
+    }
+  }, [router])
 
   const formatYAxis = (val: any) => {
     const num = Number(val) || 0
@@ -160,7 +213,7 @@ export default function AdminReportsPage() {
 
   const activeConfig = chartConfigs[activeChart]
 
-  if (loading) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest text-sm h-screen flex items-center justify-center animate-pulse">Aggregating platform metrics...</div>
+  if (isInitializing || loading) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest text-sm h-screen flex items-center justify-center animate-pulse">Aggregating platform metrics...</div>
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in pb-20 relative">

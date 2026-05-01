@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../../../lib/supabase' // Adjust path if needed
 import toast from 'react-hot-toast'
 import { Bell, BellRing, CheckCircle2, Check } from 'lucide-react'
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 
 export default function NotificationsPage() {
   const [loading, setLoading] = useState(true)
@@ -11,12 +12,12 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<any[]>([])
   const [userId, setUserId] = useState<string | null>(null)
 
-  const fetchNotifications = useCallback(async (uid: string) => {
+  const fetchNotifications = useCallback(async (uid?: string) => {
     try {
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
-        .eq('parent_id', uid)
+        .eq('parent_id', uid || '')
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -27,6 +28,8 @@ export default function NotificationsPage() {
     } finally {
       setLoading(false)
     }
+    fetchNotifications()
+    useRealtimeSync(() => fetchNotifications())
   }, [])
 
   useEffect(() => {
@@ -42,7 +45,7 @@ export default function NotificationsPage() {
         }
         
         setUserId(user.id)
-        await fetchNotifications(user.id)
+        await fetchNotifications()
 
         // Set up Realtime listener
         channel = supabase
@@ -56,7 +59,7 @@ export default function NotificationsPage() {
               filter: `parent_id=eq.${user.id}` 
             },
             () => {
-              fetchNotifications(user.id) 
+              fetchNotifications() 
             }
           )
           .subscribe()
@@ -72,7 +75,7 @@ export default function NotificationsPage() {
     return () => {
       if (channel) supabase.removeChannel(channel)
     }
-  }, [fetchNotifications])
+  }, [])
 
   const markAsRead = async (id: string) => {
     try {

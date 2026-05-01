@@ -3,7 +3,7 @@
 import { jsPDF } from 'jspdf'
 import toast from 'react-hot-toast'
 import { Download, CheckCircle2, Clock, AlertCircle, FileX, Landmark, ReceiptText } from 'lucide-react'
-
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 export default function PayoutLedger({ withdrawalHistory }: { withdrawalHistory: any[] }) {
   
   const handleDownloadReceipt = (requestRow: any) => {
@@ -66,7 +66,7 @@ export default function PayoutLedger({ withdrawalHistory }: { withdrawalHistory:
       doc.save(`PayTerm_Settlement_${requestRow.bank_reference || requestRow.id.substring(0,6)}.pdf`)
       
       toast.success("Receipt downloaded!")
-
+      useRealtimeSync(() => handleDownloadReceipt(requestRow))
     } catch (err) {
       console.error(err)
       toast.error("Failed to generate PDF. Please try on a desktop browser.")

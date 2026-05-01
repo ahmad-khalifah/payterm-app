@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { supabase } from '../../../../../lib/supabase'
 import toast from 'react-hot-toast'
 import { Landmark, Hash, ChevronDown, Info, Send } from 'lucide-react'
-
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 export default function WithdrawalForm({ totalAvailable, targetSchool, schoolId, onSuccess }: any) {
   const [form, setForm] = useState({ bankName: '', accountNumber: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -37,6 +37,7 @@ export default function WithdrawalForm({ totalAvailable, targetSchool, schoolId,
       setForm({ bankName: '', accountNumber: '' })
       
       onSuccess() 
+      useRealtimeSync(() => onSuccess())
     } catch (err: any) {
       toast.error(`Error submitting request: ${err.message}`, { id: loadingToast })
     } finally {

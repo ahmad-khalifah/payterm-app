@@ -6,6 +6,7 @@ import { supabase } from '../../../../lib/supabase' // Adjust your import path a
 import Link from 'next/link'
 import PaymentPreviewBox from './components/PaymentPreviewBox'
 import toast from 'react-hot-toast'
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 
 import { ArrowLeft, User, Building2, CreditCard, AlertCircle, ChevronDown } from 'lucide-react'
 
@@ -47,6 +48,7 @@ export default function AddStudentPage() {
       }
     }
     fetchSchools()
+    useRealtimeSync(() => fetchSchools())
   }, [])
 
   // 2. Load classes strictly when School, Session, and Term are selected
@@ -80,6 +82,7 @@ export default function AddStudentPage() {
     }
 
     fetchClasses()
+    useRealtimeSync(() => fetchClasses())
   }, [form.schoolName, form.session, form.term])
 
   // 3. Handle strict submission

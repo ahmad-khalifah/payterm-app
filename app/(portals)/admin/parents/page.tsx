@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
+import toast from 'react-hot-toast'
 
 // --- NEW LUCIDE ICONS ---
 import { 
@@ -12,14 +14,18 @@ import {
 } from 'lucide-react'
 
 export default function AdminCollectionsPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [isInitializing, setIsInitializing] = useState(true) // HQ Session Lock
   const [collections, setCollections] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState('All')
 
   // BULLETPROOF FETCH: Bypassing complex Supabase Joins to prevent silent failures
-  const fetchCollections = async () => {
+  const fetchCollections = useCallback(async (isMounted: boolean = true) => {
     try {
+      if (isMounted) setLoading(true)
+
       const { data: plansData, error: planError } = await supabase
         .from('active_plans')
         .select('*')
@@ -28,7 +34,7 @@ export default function AdminCollectionsPage() {
       if (planError) throw planError
 
       if (!plansData || plansData.length === 0) {
-        setCollections([])
+        if (isMounted) setCollections([])
         return
       }
 
@@ -111,22 +117,70 @@ export default function AdminCollectionsPage() {
         return dateB - dateA;
       });
 
-      setCollections(formattedGroups)
+      if (isMounted) setCollections(formattedGroups)
       
     } catch (err: any) {
       console.error("Collections Fetch Error:", err)
-      if (err.message) alert("Database Error: " + err.message)
+      if (isMounted && err.message) toast.error("Database Error: " + err.message)
     } finally {
-      setLoading(false) 
+      if (isMounted) setLoading(false) 
     }
-  }
-
-  useEffect(() => {
-    fetchCollections()
   }, [])
 
+  useEffect(() => {
+    let isMounted = true
+
+    const initializePage = async () => {
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        
+        if (authError || !user) {
+          router.push('/admin-login')
+          return
+        }
+
+        // CRITICAL HQ VERIFICATION
+        const { data: hqData } = await supabase
+          .from('hq_users')
+          .select('role')
+          .eq('user_email', user.email as string || '')
+          .maybeSingle()
+
+        if (!hqData) {
+          await supabase.auth.signOut()
+          router.push('/admin-login')
+          return
+        }
+
+        if (isMounted) {
+          await fetchCollections(isMounted)
+        }
+
+      } catch (err) {
+        console.error("Initialization Error:", err)
+        toast.error("HQ Authentication failed.")
+        if (isMounted) setLoading(false)
+      } finally {
+        if (isMounted) setIsInitializing(false)
+      }
+    }
+
+    initializePage()
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') router.push('/admin-login')
+    })
+
+    return () => {
+      isMounted = false
+      authListener.subscription.unsubscribe()
+    }
+  }, [router, fetchCollections])
+
   const handleNudge = (parentName: string, phone: string, amount: number) => {
-    alert(`Recovery Protocol: Automated SMS nudge sent to ${parentName} at ${phone} for ₦${amount.toLocaleString()}.`)
+    toast.success(`Automated SMS nudge sent to ${parentName} at ${phone} for ₦${amount.toLocaleString()}.`, {
+      icon: '🔔'
+    })
   }
 
   const filteredData = collections.filter(item => {
@@ -140,7 +194,7 @@ export default function AdminCollectionsPage() {
   const totalArrears = collections.reduce((sum, item) => sum + item.total_outstanding, 0)
   const highRiskCount = collections.filter(item => item.household_status === 'Default' || item.household_status === 'Late').length
 
-  if (loading) return <div className="p-10 text-center font-bold text-[#0a1128] h-screen uppercase tracking-widest flex items-center justify-center animate-pulse">Loading Collections...</div>
+  if (isInitializing || loading) return <div className="p-10 text-center font-bold text-[#0a1128] h-screen uppercase tracking-widest flex items-center justify-center animate-pulse">Initializing HQ Terminal...</div>
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in pb-20">

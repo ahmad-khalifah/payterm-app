@@ -1,7 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
+import toast from 'react-hot-toast'
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 
 import { 
   Building2, Users, AlertTriangle, Wallet, 
@@ -19,7 +22,9 @@ const getFeeBreakdown = (totalInvoice: number) => {
 }
 
 export default function AdminDashboard() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [isInitializing, setIsInitializing] = useState(true) // Session Lock
   const [fetchError, setFetchError] = useState<string | null>(null)
   
   const [stats, setStats] = useState({
@@ -61,6 +66,7 @@ export default function AdminDashboard() {
         let overdraft = 0
         
         const activeSchoolsCount = schoolsData.filter((s: any) => s.status === 'Active').length
+        useRealtimeSync(() => fetchLiveStats())
 
         studentData.forEach((student: any) => {
           const studentPlan = planData.find((p: any) => p.student_id === student.id && p.status !== 'Completed')
@@ -118,21 +124,59 @@ export default function AdminDashboard() {
       }
     }
 
-    fetchLiveStats()
-    // Add this right under where you call your fetch function (e.g., fetchLiveStats())
+    const initializePage = async () => {
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        
+        if (authError || !user) {
+          router.push('/admin-login')
+          return
+        }
+
+        // CRITICAL HQ VERIFICATION
+        const { data: hqData } = await supabase
+          .from('hq_users')
+          .select('role')
+          .eq('user_email', user.email as string)
+          .maybeSingle()
+
+        if (!hqData) {
+          await supabase.auth.signOut()
+          router.push('/admin-login')
+          return
+        }
+
+        // If authenticated as HQ, fetch the stats
+        await fetchLiveStats()
+
+      } catch (err) {
+        console.error("Initialization Error:", err)
+        toast.error("HQ Authentication failed.")
+        if (isMounted) setLoading(false)
+      } finally {
+        if (isMounted) setIsInitializing(false)
+      }
+    }
+
+    initializePage()
+
     const handleSilentRefresh = () => { if (isMounted) fetchLiveStats() }
     window.addEventListener('payterm-db-update', handleSilentRefresh)
 
-    // And make sure to remove it in the cleanup return:
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') router.push('/admin-login')
+    })
+
     return () => { 
       isMounted = false 
       window.removeEventListener('payterm-db-update', handleSilentRefresh)
+      authListener.subscription.unsubscribe()
     }
+  }, [router])
 
-    return () => { isMounted = false }
-  }, [])
+  if (isInitializing) return <div className="p-10 text-center font-bold text-[#0a1128] tracking-widest uppercase text-sm h-screen flex items-center justify-center animate-pulse">Initializing HQ Terminal...</div>
 
-  if (fetchError) {
+  if (fetchError && !isInitializing) {
     return (
       <div className="w-full max-w-3xl mx-auto p-10 mt-20 bg-red-50 border border-red-200 rounded-3xl shadow-sm">
         <div className="flex items-center gap-3 mb-4">

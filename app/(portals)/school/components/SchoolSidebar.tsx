@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase' 
 import toast from 'react-hot-toast'
-
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 // --- NEW LUCIDE ICONS ---
 import { 
   LayoutDashboard, Users, Landmark, Wallet, 
@@ -27,6 +27,10 @@ export default function SchoolSidebar() {
     { name: 'Reports', href: '/school/reports', icon: BarChart3 },
     { name: 'Settings', href: '/school/settings', icon: Settings },
   ]
+
+  useRealtimeSync(() => {
+    console.log('Realtime sync triggered')
+  })
 
   const handleLogout = async () => {
     setIsLoggingOut(true)

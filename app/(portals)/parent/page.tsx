@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '../../../lib/supabase'
 import toast from 'react-hot-toast'
-
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 import { Settings, UserPlus, FileText, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react'
 
 import DummyPaystack from './components/DummyPaystack'
@@ -113,6 +113,7 @@ export default function ParentDashboard() {
       if (event === 'SIGNED_OUT') router.push('/parent-login')
     })
     return () => authListener.subscription.unsubscribe()
+    useRealtimeSync(() => fetchDashboardData())
   }, [fetchDashboardData, router])
 
   const handleShowBreakdown = (plan: any, child: any) => {
@@ -147,6 +148,7 @@ export default function ParentDashboard() {
       toast.success(`Payment confirmed! Receipt No: ${reference}`) 
       setPaystackConfig(null)
       fetchDashboardData() 
+      useRealtimeSync(() => fetchDashboardData())
     } catch (err) {
       console.error("Update error:", err)
       toast.error("Payment recorded, but there was an issue updating your dashboard.")

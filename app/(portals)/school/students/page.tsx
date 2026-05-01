@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
-
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 import { 
   Users, Search, Filter, Printer, GraduationCap, 
   CalendarDays, CheckCircle2, XCircle, UserMinus, 
@@ -93,6 +93,7 @@ export default function StudentsPage() {
       isMounted = false
       authListener.subscription.unsubscribe()
     }
+    useRealtimeSync(() => initializePage())
   }, [router, fetchStudents])
 
   // Custom Confirmation Toast for Withdrawals
@@ -149,6 +150,7 @@ export default function StudentsPage() {
 
       toast.success("Student successfully withdrawn.", { id: loadingToast })
       if (schoolId) fetchStudents(schoolId) 
+      useRealtimeSync(() => fetchStudents(schoolId as string))
     } catch (err: any) { 
       toast.error(`Withdrawal Error: ${err.message}`, { id: loadingToast })
     } finally { 

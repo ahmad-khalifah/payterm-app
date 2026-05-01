@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import '../../globals.css'
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 
 import { 
   LayoutDashboard, Building2, Wallet, 
@@ -27,6 +28,10 @@ export default function AdminLayout({
     { name: 'Reports', href: '/admin/reports', icon: Shield },
     { name: 'Settings', href: '/admin/settings', icon: Settings },
   ]
+
+  useRealtimeSync(() => {
+    console.log('Realtime sync triggered')
+  })
 
   return (
     <div className="flex h-screen w-full bg-gray-50 font-sans overflow-hidden text-[#0a1128] selection:bg-blue-100 selection:text-blue-900 relative">

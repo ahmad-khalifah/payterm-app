@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import { approveSchoolAction, suspendSchoolAction, toggleSchoolTierAction } from '@/app/actions/admin'
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 
 import { 
   Building2, Search, Download, Settings, 
@@ -24,6 +25,7 @@ const getFeeBreakdown = (totalInvoice: number) => {
 export default function AdminSchoolsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [isInitializing, setIsInitializing] = useState(true) // HQ Session Lock
   const [schools, setSchools] = useState<any[]>([])
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -31,8 +33,10 @@ export default function AdminSchoolsPage() {
   const [platformEscrow, setPlatformEscrow] = useState(0)
 
   // 1. BULLETPROOF FETCH
-  const fetchSchoolsAndEscrow = async () => {
+  const fetchSchoolsAndEscrow = useCallback(async (isMounted: boolean = true) => {
     try {
+      if (isMounted) setLoading(true)
+
       const { data: schoolsData, error: schoolError } = await supabase
         .from('partner_schools')
         .select('*')
@@ -41,8 +45,10 @@ export default function AdminSchoolsPage() {
       if (schoolError) throw schoolError
 
       if (!schoolsData || schoolsData.length === 0) {
-        setSchools([])
-        setPlatformEscrow(0)
+        if (isMounted) {
+          setSchools([])
+          setPlatformEscrow(0)
+        }
         return
       }
 
@@ -72,27 +78,74 @@ export default function AdminSchoolsPage() {
           }
         })
 
+        useRealtimeSync(() => fetchSchoolsAndEscrow(true))
+
         return { ...school, unclaimed_escrow: schoolEscrow }
       })
         
-      setPlatformEscrow(globalEscrow)
-      setSchools(augmentedSchools)
+      if (isMounted) {
+        setPlatformEscrow(globalEscrow)
+        setSchools(augmentedSchools)
+      }
       
     } catch (err: any) {
       console.error("HQ Fetch Error:", err)
-      if (err.message) toast.error("Fetch Error: " + err.message)
+      if (isMounted && err.message) toast.error("Fetch Error: " + err.message)
     } finally {
-      setLoading(false)
+      if (isMounted) setLoading(false)
     }
-  }
+  }, [])
 
+  // 2. INITIALIZATION & AUTH
   useEffect(() => {
-    fetchSchoolsAndEscrow()
+    let isMounted = true
+
+    const initializePage = async () => {
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        
+        if (authError || !user) {
+          router.push('/admin-login')
+          return
+        }
+
+        // CRITICAL HQ VERIFICATION
+        const { data: hqData } = await supabase
+          .from('hq_users')
+          .select('role')
+          .eq('user_email', user.email as string)
+          .maybeSingle()
+
+        if (!hqData) {
+          await supabase.auth.signOut()
+          router.push('/admin-login')
+          return
+        }
+
+        if (isMounted) {
+          await fetchSchoolsAndEscrow(isMounted)
+        }
+
+      } catch (err) {
+        console.error("Initialization Error:", err)
+        toast.error("HQ Authentication failed.")
+        if (isMounted) setLoading(false)
+      } finally {
+        if (isMounted) setIsInitializing(false)
+      }
+    }
+
+    initializePage()
+
     const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') router.push('/admin-login') 
     })
-    return () => authListener.subscription.unsubscribe()
-  }, [router])
+
+    return () => {
+      isMounted = false
+      authListener.subscription.unsubscribe()
+    }
+  }, [router, fetchSchoolsAndEscrow])
 
   const handleApproveSchool = (schoolId: string, schoolName: string, schoolEmail: string) => {
     toast(
@@ -104,12 +157,13 @@ export default function AdminSchoolsPage() {
               onClick={async () => {
                 toast.dismiss(t.id)
                 setActionLoading(schoolId)
+                const loadingToast = toast.loading(`Approving ${schoolName}...`)
                 try {
                   await approveSchoolAction(schoolId, schoolName, schoolEmail)
-                  toast.success("School approved successfully.")
-                  fetchSchoolsAndEscrow()
+                  toast.success("School approved successfully.", { id: loadingToast })
+                  fetchSchoolsAndEscrow(true)
                 } catch (err: any) { 
-                  toast.error(`Approval failed: ${err.message}`) 
+                  toast.error(`Approval failed: ${err.message}`, { id: loadingToast }) 
                   console.error(err)
                 } finally { setActionLoading(null) }
               }}
@@ -134,12 +188,13 @@ export default function AdminSchoolsPage() {
               onClick={async () => {
                 toast.dismiss(t.id)
                 setActionLoading(schoolId)
+                const loadingToast = toast.loading(`Suspending ${schoolName}...`)
                 try {
                   await suspendSchoolAction(schoolId)
-                  toast.success("School suspended.")
-                  fetchSchoolsAndEscrow()
+                  toast.success("School suspended.", { id: loadingToast })
+                  fetchSchoolsAndEscrow(true)
                 } catch (err: any) { 
-                  toast.error(`Suspension failed: ${err.message}`) 
+                  toast.error(`Suspension failed: ${err.message}`, { id: loadingToast }) 
                 } finally { setActionLoading(null) }
               }}
               className="bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-700 transition-colors"
@@ -165,12 +220,13 @@ export default function AdminSchoolsPage() {
               onClick={async () => {
                 toast.dismiss(t.id)
                 setActionLoading(schoolId)
+                const loadingToast = toast.loading(`Upgrading to ${newTier}...`)
                 try {
                   await toggleSchoolTierAction(schoolId, newTier)
-                  toast.success(`Upgraded to ${newTier}.`)
-                  fetchSchoolsAndEscrow()
+                  toast.success(`Upgraded to ${newTier}.`, { id: loadingToast })
+                  fetchSchoolsAndEscrow(true)
                 } catch (err: any) { 
-                  toast.error(`Tier update failed: ${err.message}`) 
+                  toast.error(`Tier update failed: ${err.message}`, { id: loadingToast }) 
                 } finally { setActionLoading(null) }
               }}
               className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors"
@@ -198,6 +254,7 @@ export default function AdminSchoolsPage() {
     a.download = `payterm_partner_schools_${new Date().toISOString().split('T')[0]}.csv`
     a.click()
     window.URL.revokeObjectURL(url)
+    toast.success("CSV export downloaded successfully.")
   }
 
   const filteredSchools = schools.filter(s => 
@@ -210,7 +267,7 @@ export default function AdminSchoolsPage() {
   const activeSchools = schools.filter(s => s.status === 'Active').length
   const pendingSchools = schools.filter(s => s.status === 'Pending Verification' || s.status === 'Pending').length
 
-  if (loading) return <div className="p-10 text-center font-bold text-[#0a1128] tracking-widest uppercase text-sm h-screen flex items-center justify-center animate-pulse">Loading Partner Network...</div>
+  if (isInitializing || loading) return <div className="p-10 text-center font-bold text-[#0a1128] tracking-widest uppercase text-sm h-screen flex items-center justify-center animate-pulse">Initializing HQ Terminal...</div>
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto animate-in fade-in pb-20 relative">
@@ -224,7 +281,10 @@ export default function AdminSchoolsPage() {
           </h1>
           <p className="text-gray-500 font-medium text-xs">Review applications and manage platform liquidity.</p>
         </div>
-        <button className="text-xs font-bold text-gray-500 hover:text-[#0a1128] transition-colors bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-200 flex items-center gap-2 active:scale-95">
+        <button 
+          onClick={() => router.push('/admin/settings')}
+          className="text-xs font-bold text-gray-500 hover:text-[#0a1128] transition-colors bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-200 flex items-center gap-2 active:scale-95"
+        >
           <Settings className="w-3.5 h-3.5" /> Global Settings
         </button>
       </div>

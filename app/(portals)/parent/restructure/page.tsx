@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
 import { RefreshCcw, User, MessageSquare, ChevronDown, Send } from 'lucide-react'
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 
 export default function RestructurePage() {
   const [loading, setLoading] = useState(true)
@@ -43,6 +44,7 @@ export default function RestructurePage() {
     }
     
     fetchStudents()
+    useRealtimeSync(() => fetchStudents())
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {

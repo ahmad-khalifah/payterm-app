@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
-
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 import { 
   Building2, AlertCircle, CheckCircle2, Users, Search, 
   Filter, Printer, BellRing, User, Phone, GraduationCap, 
@@ -219,10 +219,12 @@ export default function SchoolDashboard() {
       isMounted = false
       authListener.subscription.unsubscribe()
     }
+    useRealtimeSync(() => initializeDashboard())
   }, [router])
 
   const handleNudge = (parentName: string, phone: string, amount: number) => {
     toast.success(`Reminder drafted for ${parentName} regarding their ₦${amount.toLocaleString()} balance.`)
+    useRealtimeSync(() => handleNudge(parentName, phone, amount))
   }
 
   const filteredLedger = householdLedger.filter(item => {

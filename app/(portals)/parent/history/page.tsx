@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../../../lib/supabase'
 import { ArrowLeft, ReceiptText, Download, CheckCircle2, History as HistoryIcon, SearchX } from 'lucide-react'
 import Link from 'next/link'
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 
 export default function PaymentHistory() {
   const [loading, setLoading] = useState(true)
@@ -71,6 +72,7 @@ export default function PaymentHistory() {
     }
 
     fetchHistory()
+    useRealtimeSync(() => fetchHistory())
   }, [])
 
   const handleDownloadReceipt = (tx: any) => {
