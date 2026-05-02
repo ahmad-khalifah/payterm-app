@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '../../../lib/supabase'
 import toast from 'react-hot-toast'
-import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
-import { Settings, UserPlus, FileText, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react'
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
+import { UserPlus, FileText, ChevronRight, AlertCircle, Wallet } from 'lucide-react'
 
 import DummyPaystack from './components/DummyPaystack'
 import StudentCard from './components/StudentCard'
@@ -44,8 +44,6 @@ export default function ParentDashboard() {
   // 1. Pure Fetch Function
   const fetchDashboardData = useCallback(async () => {
     try {
-      // STRICT PROTOCOL: Only use getUser() to validate secure HTTP cookies.
-      // This permanently fixes the tab-switching ghost account bug.
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       
       if (userError || !user) {
@@ -104,12 +102,13 @@ export default function ParentDashboard() {
       console.error("Dashboard Fetch Error:", err)
       toast.error("Failed to load dashboard data.")
     } finally {
-      setIsInitializing(false) // Release the UI lock once secure
+      setIsInitializing(false)
     }
   }, [router])
 
-  // 2. THE HOOK GOES HERE: At the top level!
-  useRealtimeSync(() => fetchDashboardData())
+  // 2. THE HOOK GOES HERE: At the top level! 
+  // (Passed as a direct reference to prevent infinite loops)
+  useRealtimeSync(fetchDashboardData)
 
   // 3. Normal Initialization Check
   useEffect(() => {
@@ -152,15 +151,20 @@ export default function ParentDashboard() {
       toast.success(`Payment confirmed! Receipt No: ${reference}`) 
       setPaystackConfig(null)
       fetchDashboardData() 
-      
-      // We don't need a useRealtimeSync here. 
-      // 1. We just called fetchDashboardData() above manually.
-      // 2. The global listener (step 2) will catch any further DB updates anyway.
     } catch (err) {
       console.error("Update error:", err)
       toast.error("Payment recorded, but there was an issue updating your dashboard.")
     }
   }
+
+  // --- DYNAMIC DASHBOARD METRICS ---
+  const enrolledCount = childrenData.length;
+  const totalOutstanding = childrenData.reduce((acc, child) => {
+    const plan = child.active_plans?.[0];
+    if (!plan) return acc;
+    const due = Number(plan.total_fee) - Number(plan.amount_paid);
+    return acc + Math.max(0, due);
+  }, 0);
 
   // Lock the UI until initialization is complete
   if (isInitializing) return <div className="p-10 text-center text-sm font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Authenticating Secure Session...</div>
@@ -261,47 +265,55 @@ export default function ParentDashboard() {
         />
       )}
 
-      {/* STICKY HEADER SECTION */}
-      <div className="sticky top-0 z-40 bg-gray-50/95 backdrop-blur-md pt-4 sm:pt-6 lg:pt-10 pb-4 px-4 sm:px-6 lg:px-10 border-b border-gray-200/50 mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#0a1128] to-blue-900 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-blue-900/20">
-              {parentName ? parentName.charAt(0) : 'P'}
+      {/* STICKY HEADER SECTION - WALLET STYLE CARD */}
+      <div className="sticky top-0 z-40 bg-gray-50/95 backdrop-blur-md pt-4 sm:pt-6 lg:pt-8 pb-4 border-b border-gray-200/50 mb-6 px-4 sm:px-6 lg:px-10">
+        <div className="max-w-6xl mx-auto">
+          
+          {/* Top Profile Row */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-50 text-blue-600 flex items-center justify-center text-sm font-extrabold shadow-inner border border-blue-200">
+              {parentName ? parentName.charAt(0).toUpperCase() : 'P'}
             </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0a1128] tracking-tight">
-                Welcome back, {parentName ? parentName.split(' ')[0] : 'Parent'}
-              </h1>
-              <p className="text-gray-500 text-sm mt-0.5">Manage your active payment plans and enrollments.</p>
-            </div>
+            <h1 className="text-base sm:text-lg font-extrabold text-[#0a1128] uppercase tracking-wide">
+              Hi, {parentName ? parentName.split(' ')[0] : 'PARENT'}
+            </h1>
           </div>
-          <div className="flex flex-col sm:flex-row items-center gap-3">
-            <Link href="/parent/profile" className="hidden sm:flex px-6 py-3 border border-gray-200 bg-white rounded-full text-sm font-bold text-gray-700 hover:bg-gray-50 hover:shadow-md transition-all active:scale-95 items-center gap-2">
-              <Settings className="w-4 h-4" />
-              Settings
-            </Link>
+
+          {/* Wallet Style Card */}
+          <div className="bg-[#0a1128] text-white p-5 rounded-3xl shadow-lg shadow-blue-900/10">
             
-            <Link href="/parent/add-student" className="group relative w-full sm:w-auto flex items-center justify-center gap-3 px-6 py-3 bg-[#0a1128] text-white rounded-full font-bold text-sm transition-all shadow-lg shadow-[#0a1128]/20 hover:shadow-blue-900/30 active:scale-95 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <div className="relative flex items-center justify-center w-6 h-6 rounded-full bg-white/10 shadow-inner border border-white/20">
-                <UserPlus className="w-3.5 h-3.5 text-white" />
+            {/* Top Row */}
+            <div className="flex justify-between items-center mb-3">
+              <div className="flex items-center gap-1.5 text-blue-100/80">
+                <Wallet className="w-4 h-4" />
+                <span className="text-xs font-medium">Outstanding Balance</span>
               </div>
-              <span className="relative tracking-wide">Add New Student</span>
-            </Link>
+              <div className="text-xs font-medium text-blue-100/80 flex items-center gap-1">
+                Active Plans: <span className="font-bold text-white">{enrolledCount}</span>
+              </div>
+            </div>
+
+            {/* Bottom Row */}
+            <div className="flex justify-between items-center">
+              <div className="text-3xl font-black tracking-tight">
+                ₦{totalOutstanding.toLocaleString()}
+              </div>
+              <Link 
+                href="/parent/add-student" 
+                className="bg-white text-[#0a1128] px-4 py-2.5 rounded-full text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-transform shadow-sm hover:bg-gray-50"
+              >
+                <span className="font-bold text-lg leading-none mb-0.5">+</span> Add Child
+              </Link>
+            </div>
           </div>
+          
         </div>
       </div>
 
       {/* DASHBOARD CONTENT CONTAINER */}
       <div className="px-4 sm:px-6 lg:px-10">
-        {childrenData.length > 0 && (
-          <div className="flex items-center gap-2 mb-6">
-            <CheckCircle2 className="w-5 h-5 text-blue-600" />
-            <h2 className="text-lg font-extrabold text-[#0a1128] tracking-tight">Your Active Plans</h2>
-          </div>
-        )}
 
-        {/* STUDENTS GRID */}
+        {/* STUDENTS GRID (Heading Removed) */}
         <div className={childrenData.length === 0 ? "" : "grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-6"}>
           {childrenData.length === 0 ? (
             <div className="bg-gradient-to-b from-white to-gray-50 rounded-3xl border border-dashed border-gray-300 p-12 text-center flex flex-col items-center justify-center shadow-sm relative overflow-hidden">
@@ -326,7 +338,7 @@ export default function ParentDashboard() {
                 onToggleHistory={(id: string) => setExpandedHistoryId(prev => prev === id ? null : id)}
                 onPay={handleShowBreakdown} 
                 onRenew={setRenewConfig}
-                viewReceipt={setActiveReceipt} // Make sure this prop name matches your StudentCard component!
+                viewReceipt={setActiveReceipt}
               />
             ))
           )}

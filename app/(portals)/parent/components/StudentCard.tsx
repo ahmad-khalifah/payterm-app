@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Building2, GraduationCap, Calendar, ChevronRight, ChevronDown, CheckCircle2, RotateCw, Wallet, ReceiptText, AlertCircle } from 'lucide-react'
+import { Building2, GraduationCap, Calendar, ChevronDown, ChevronUp, CheckCircle2, RotateCw, Wallet, ReceiptText, AlertCircle, Clock } from 'lucide-react'
 
 export default function StudentCard({ child, expandedHistoryId, onToggleHistory, onPay, onRenew, onViewReceipt }: any) {
   const plan = child.active_plans?.[0]
@@ -32,7 +32,7 @@ export default function StudentCard({ child, expandedHistoryId, onToggleHistory,
   // Safety check: No active plan found
   if (!plan) {
     return (
-      <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm flex flex-col justify-center items-center text-center h-full min-h-[250px] group hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/5 transition-all duration-300">
+      <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm flex flex-col justify-center items-center text-center h-full min-h-[220px] group hover:-translate-y-1 hover:shadow-md transition-all duration-300">
         <div className="w-12 h-12 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mb-3">
           <AlertCircle className="w-6 h-6" />
         </div>
@@ -45,10 +45,10 @@ export default function StudentCard({ child, expandedHistoryId, onToggleHistory,
             schoolName: child.display_school_name,
             studentName: child.full_name,
             currentClass: child.student_class,
-            nextSession: "2025/2026", // Default fallback
-            nextTerm: "First Term"    // Default fallback
+            nextSession: "2025/2026", 
+            nextTerm: "First Term" 
           })} 
-          className="mt-4 px-6 py-2.5 bg-[#0a1128] text-white text-xs font-bold rounded-full hover:bg-blue-600 transition-colors active:scale-95 shadow-sm"
+          className="mt-4 px-6 py-2.5 bg-[#0a1128] text-white text-xs font-bold rounded-full hover:bg-blue-900 transition-colors active:scale-95 shadow-sm"
         >
           Set Up Plan
         </button>
@@ -63,90 +63,85 @@ export default function StudentCard({ child, expandedHistoryId, onToggleHistory,
   const isFullyPaid = progressPercent >= 100
 
   return (
-    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-blue-900/5 hover:-translate-y-1 transition-all duration-300 overflow-hidden group flex flex-col">
+    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col">
       
-      {/* CARD HEADER */}
-      <div className="p-6 pb-5 border-b border-gray-50 flex justify-between items-start bg-gradient-to-b from-white to-gray-50/30">
-        <div className="flex gap-4 items-center">
-          <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-black text-lg border border-blue-100 shadow-inner">
+      {/* 1. COMPACT HEADER: Avatar, Name, Tags */}
+      <div className="p-4 sm:px-5 sm:pt-5 pb-3">
+        <div className="flex items-start gap-3 mb-3">
+          <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-black text-lg border border-blue-100 shrink-0">
             {child.full_name.charAt(0)}
           </div>
-          <div>
-            <h3 className="font-extrabold text-[#0a1128] text-lg tracking-tight mb-0.5">{child.full_name}</h3>
-            <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1 border ${
-              plan.status === 'Active' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
-              plan.status === 'Completed' ? 'bg-green-50 text-green-700 border-green-200' : 
-              'bg-orange-50 text-orange-700 border-orange-200'
-            }`}>
-              {plan.status === 'Completed' && <CheckCircle2 className="w-3 h-3" />}
-              {plan.status}
-            </span>
+          <div className="flex flex-col">
+            <h3 className="font-extrabold text-[#0a1128] text-base sm:text-lg tracking-tight leading-tight mb-1">{child.full_name}</h3>
+            <div>
+              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider inline-flex items-center gap-1 border ${
+                plan.status === 'Active' ? 'bg-blue-50 text-blue-600 border-blue-200' : 
+                plan.status === 'Completed' ? 'bg-green-50 text-green-600 border-green-200' : 
+                'bg-orange-50 text-orange-600 border-orange-200'
+              }`}>
+                {plan.status === 'Completed' && <CheckCircle2 className="w-3 h-3" />}
+                {plan.status}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-1 bg-gray-50 px-2.5 py-1 rounded-md border border-gray-100 text-[10px] sm:text-xs font-medium text-gray-600">
+            <Building2 className="w-3 h-3 text-gray-400" />
+            <span className="truncate max-w-[150px] sm:max-w-[180px]">{child.display_school_name}</span>
+          </div>
+          <div className="flex items-center gap-1 bg-gray-50 px-2.5 py-1 rounded-md border border-gray-100 text-[10px] sm:text-xs font-medium text-gray-600">
+            <GraduationCap className="w-3 h-3 text-gray-400" />
+            {child.student_class}
           </div>
         </div>
       </div>
 
-      {/* CARD BODY */}
-      <div className="p-6 space-y-5 flex-grow">
-        
-        {/* Context Tags */}
-        <div className="flex flex-wrap gap-2">
-          <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100 text-xs font-medium text-gray-600">
-            <Building2 className="w-3.5 h-3.5 text-gray-400" />
-            <span className="truncate max-w-[150px] sm:max-w-xs">{child.display_school_name}</span>
-          </div>
-          <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100 text-xs font-medium text-gray-600">
-            <GraduationCap className="w-3.5 h-3.5 text-gray-400" />
-            {child.student_class}
-          </div>
-        </div>
-
-        {/* Financial Progress Box */}
-        <div className="bg-blue-50/40 rounded-2xl p-4 border border-blue-100/50 relative overflow-hidden">
-          <div className="absolute -right-4 -top-4 w-16 h-16 bg-blue-100/50 rounded-full blur-2xl"></div>
-          
-          <div className="flex justify-between items-end mb-3 relative z-10">
+      {/* 2. COMPACT FINANCIAL PROGRESS BOX */}
+      <div className="px-4 sm:px-5 pb-3">
+        <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100">
+          <div className="flex justify-between items-start mb-3">
             <div>
-              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-0.5">Remaining Balance</p>
-              <p className="text-2xl font-black text-[#0a1128] tracking-tight">₦{outstanding.toLocaleString()}</p>
+              <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-0.5">Remaining Balance</p>
+              <p className="text-xl sm:text-2xl font-black text-[#0a1128] tracking-tight leading-none">₦{outstanding.toLocaleString()}</p>
             </div>
             <div className="text-right">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Total Plan</p>
-              <p className="text-sm font-bold text-gray-600">₦{totalFee.toLocaleString()}</p>
+              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Total Plan</p>
+              <p className="text-xs sm:text-sm font-bold text-gray-600">₦{totalFee.toLocaleString()}</p>
             </div>
           </div>
 
-          {/* Progress Bar */}
-          <div className="relative z-10">
-            <div className="flex justify-between text-[10px] font-bold mb-1">
+          <div className="relative">
+            <div className="flex justify-between text-[10px] font-bold mb-1.5">
               <span className="text-blue-600">{progressPercent}% Cleared</span>
             </div>
-            <div className="w-full bg-blue-100 rounded-full h-2.5 overflow-hidden">
+            <div className="w-full bg-blue-100/50 rounded-full h-2 overflow-hidden">
               <div 
-                className="bg-gradient-to-r from-blue-500 to-blue-600 h-2.5 rounded-full transition-all duration-1000 ease-out" 
+                className="bg-blue-600 h-2 rounded-full transition-all duration-1000 ease-out" 
                 style={{ width: `${progressPercent}%` }}
               ></div>
             </div>
           </div>
         </div>
-
-        {/* Next Due Date */}
+        
+        {/* Next Due Date (Slimline) */}
         {!isFullyPaid && plan.next_payment_date && (
-          <div className="flex items-center gap-2 text-xs font-bold text-orange-600 bg-orange-50 px-3 py-2 rounded-xl border border-orange-100">
-            <Calendar className="w-4 h-4" />
+          <div className="mt-2 flex items-center justify-center gap-1.5 text-[10px] sm:text-xs font-bold text-orange-600 bg-orange-50 py-1.5 rounded-xl border border-orange-100">
+            <Calendar className="w-3.5 h-3.5" />
             Next payment due: {new Date(plan.next_payment_date).toLocaleDateString('en-GB')}
           </div>
         )}
       </div>
 
-      {/* CARD ACTIONS */}
-      <div className="p-4 bg-gray-50/80 border-t border-gray-100 flex flex-col sm:flex-row gap-2">
+      {/* 3. SIDE-BY-SIDE ACTIONS */}
+      <div className="px-4 sm:px-5 pb-4 sm:pb-5 flex gap-2">
         {!isFullyPaid ? (
           <button 
             onClick={() => onPay(plan, child)}
-            className="flex-1 bg-gradient-to-r from-blue-600 to-blue-500 text-white py-3 px-4 rounded-xl font-bold text-sm hover:shadow-lg hover:shadow-blue-500/30 transition-all active:scale-95 flex items-center justify-center gap-2 group/btn"
+            className="flex-[3] bg-[#0a1128] text-white py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm hover:bg-blue-900 transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-sm"
           >
             Make Payment
-            <ChevronRight className="w-4 h-4 transform group-hover/btn:translate-x-1 transition-transform" />
           </button>
         ) : (
           <button 
@@ -162,26 +157,26 @@ export default function StudentCard({ child, expandedHistoryId, onToggleHistory,
                 nextTerm
               });
             }}
-            className="flex-1 bg-[#0a1128] text-white py-3 px-4 rounded-xl font-bold text-sm hover:bg-blue-600 hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 group/btn"
+            className="flex-[3] bg-[#0a1128] text-white py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm hover:bg-blue-900 transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-sm"
           >
-            <RotateCw className="w-4 h-4" />
-            Renew for Next Term
+            <RotateCw className="w-3.5 h-3.5" />
+            Renew Term
           </button>
         )}
 
         <button 
           onClick={() => onToggleHistory(child.id)}
-          className="flex-1 bg-white border border-gray-200 text-gray-700 py-3 px-4 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all active:scale-95 flex items-center justify-center gap-2"
+          className="flex-[2] bg-white border border-gray-200 text-[#0a1128] py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm hover:bg-gray-50 transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-sm"
         >
           History
-          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+          {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </button>
       </div>
 
-      {/* EXPANDABLE PAYMENT HISTORY */}
+      {/* 4. EXPANDABLE PAYMENT HISTORY */}
       {isExpanded && (
         <div className="bg-white border-t border-gray-100 animate-in slide-in-from-top-2 duration-300">
-          <div className="p-4 px-6 bg-gray-50/50 border-b border-gray-100 flex items-center gap-2 text-gray-900">
+          <div className="p-3 sm:p-4 px-5 bg-gray-50/50 border-b border-gray-100 flex items-center gap-2 text-gray-900">
             <Wallet className="w-4 h-4 text-gray-400" />
             <h4 className="text-xs font-bold uppercase tracking-wider">Transaction Ledger</h4>
           </div>
@@ -192,9 +187,9 @@ export default function StudentCard({ child, expandedHistoryId, onToggleHistory,
             ) : (
               <ul className="divide-y divide-gray-50">
                 {plan.payment_history.map((tx: any) => (
-                  <li key={tx.id} className="p-4 flex items-center justify-between hover:bg-gray-50 rounded-xl transition-colors">
+                  <li key={tx.id} className="p-3 flex items-center justify-between hover:bg-gray-50 rounded-xl transition-colors">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-green-50 text-green-600 flex items-center justify-center shrink-0">
                         <CheckCircle2 className="w-4 h-4" />
                       </div>
                       <div>
