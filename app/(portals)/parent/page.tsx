@@ -167,10 +167,10 @@ export default function ParentDashboard() {
   }, 0);
 
   // Lock the UI until initialization is complete
-  if (isInitializing) return <div className="p-10 text-center text-sm font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Authenticating Secure Session...</div>
+  if (isInitializing) return <div className="p-10 text-center text-sm font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Loading...</div>
 
   return (
-    <div className="w-full max-w-6xl mx-auto animate-in fade-in pb-24 relative">
+    <div className="w-full max-w-6xl mx-auto animate-in fade-in pb-24 relative bg-[#f8fafc] min-h-screen">
       
       {/* PAYMENT BREAKDOWN MODAL */}
       {breakdownConfig && (() => {
@@ -265,53 +265,48 @@ export default function ParentDashboard() {
         />
       )}
 
-      {/* STICKY HEADER SECTION - WALLET STYLE CARD */}
-      <div className="sticky top-0 z-40 bg-gray-50/95 backdrop-blur-md pt-4 sm:pt-6 lg:pt-8 pb-4 border-b border-gray-200/50 mb-6 px-4 sm:px-6 lg:px-10">
-        <div className="max-w-6xl mx-auto">
-          
-          {/* Top Profile Row */}
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-50 text-blue-600 flex items-center justify-center text-sm font-extrabold shadow-inner border border-blue-200">
-              {parentName ? parentName.charAt(0).toUpperCase() : 'P'}
-            </div>
-            <h1 className="text-base sm:text-lg font-extrabold text-[#0a1128] uppercase tracking-wide">
-              Hi, {parentName ? parentName.split(' ')[0] : 'PARENT'}
-            </h1>
+      {/* --- 1. STICKY PROFILE HEADER (ONLY THIS STAYS AT THE TOP) --- */}
+      <header className="sticky top-0 z-40 bg-[#f8fafc]/95 backdrop-blur-md pt-4 sm:pt-6 lg:pt-8 pb-4 border-b border-gray-200/50 px-4 sm:px-6 lg:px-10">
+        <div className="max-w-6xl mx-auto flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-50 text-blue-600 flex items-center justify-center text-sm font-extrabold shadow-inner border border-blue-200 shrink-0">
+            {parentName ? parentName.charAt(0).toUpperCase() : 'P'}
           </div>
-
-          {/* Wallet Style Card */}
-          <div className="bg-[#0a1128] text-white p-5 rounded-3xl shadow-lg shadow-blue-900/10">
-            
-            {/* Top Row */}
-            <div className="flex justify-between items-center mb-3">
-              <div className="flex items-center gap-1.5 text-blue-100/80">
-                <Wallet className="w-4 h-4" />
-                <span className="text-xs font-medium">Outstanding Balance</span>
-              </div>
-              <div className="text-xs font-medium text-blue-100/80 flex items-center gap-1">
-                Active Plans: <span className="font-bold text-white">{enrolledCount}</span>
-              </div>
-            </div>
-
-            {/* Bottom Row */}
-            <div className="flex justify-between items-center">
-              <div className="text-3xl font-black tracking-tight">
-                ₦{totalOutstanding.toLocaleString()}
-              </div>
-              <Link 
-                href="/parent/add-student" 
-                className="bg-white text-[#0a1128] px-4 py-2.5 rounded-full text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-transform shadow-sm hover:bg-gray-50"
-              >
-                <span className="font-bold text-lg leading-none mb-0.5">+</span> Add Child
-              </Link>
-            </div>
-          </div>
-          
+          <h1 className="text-base sm:text-lg font-extrabold text-[#0a1128] uppercase tracking-wide">
+            Hi, {parentName ? parentName.split(' ')[0] : 'PARENT'}
+          </h1>
         </div>
-      </div>
+      </header>
 
-      {/* DASHBOARD CONTENT CONTAINER */}
-      <div className="px-4 sm:px-6 lg:px-10">
+      {/* --- 2. SCROLLING CONTENT (WALLET BOX + STUDENTS) --- */}
+      <div className="px-4 sm:px-6 lg:px-10 pt-6">
+        
+        {/* Wallet Style Card (Exactly as requested) */}
+        <div className="bg-[#0a1128] text-white p-5 rounded-3xl shadow-lg shadow-blue-900/10 mb-8">
+          
+          {/* Top Row */}
+          <div className="flex justify-between items-center mb-3">
+            <div className="flex items-center gap-1.5 text-blue-100/80">
+              <Wallet className="w-4 h-4" />
+              <span className="text-xs font-medium">Outstanding Balance</span>
+            </div>
+            <div className="text-xs font-medium text-blue-100/80 flex items-center gap-1">
+              Active Plans: <span className="font-bold text-white">{enrolledCount}</span>
+            </div>
+          </div>
+
+          {/* Bottom Row */}
+          <div className="flex justify-between items-center">
+            <div className="text-3xl font-black tracking-tight">
+              ₦{totalOutstanding.toLocaleString()}
+            </div>
+            <Link 
+              href="/parent/add-student" 
+              className="bg-white text-[#0a1128] px-4 py-2.5 rounded-full text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-transform shadow-sm hover:bg-gray-50"
+            >
+              <span className="font-bold text-lg leading-none mb-0.5">+</span> Add Child
+            </Link>
+          </div>
+        </div>
 
         {/* STUDENTS GRID (Heading Removed) */}
         <div className={childrenData.length === 0 ? "" : "grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-6"}>
