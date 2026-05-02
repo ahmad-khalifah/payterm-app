@@ -158,7 +158,7 @@ export default function PaymentHistory() {
     receiptWindow.document.close()
   }
 
-  if (loading) return <div className="p-10 text-center font-bold text-[#0a1128] tracking-widest uppercase h-screen flex items-center justify-center animate-pulse">Loading Ledger...</div>
+  if (loading) return <div className="p-10 text-center font-bold text-[#0a1128] tracking-widest uppercase h-screen flex items-center justify-center animate-pulse">Loading Transaction History...</div>
 
   return (
     <div className="w-full max-w-5xl mx-auto md:p-4 lg:p-8 animate-in fade-in pb-20">

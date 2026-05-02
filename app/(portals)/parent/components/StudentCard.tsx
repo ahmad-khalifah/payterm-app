@@ -178,7 +178,7 @@ export default function StudentCard({ child, expandedHistoryId, onToggleHistory,
         <div className="bg-white border-t border-gray-100 animate-in slide-in-from-top-2 duration-300">
           <div className="p-3 sm:p-4 px-5 bg-gray-50/50 border-b border-gray-100 flex items-center gap-2 text-gray-900">
             <Wallet className="w-4 h-4 text-gray-400" />
-            <h4 className="text-xs font-bold uppercase tracking-wider">Transaction Ledger</h4>
+            <h4 className="text-xs font-bold uppercase tracking-wider">Transaction History</h4>
           </div>
           
           <div className="p-2">
