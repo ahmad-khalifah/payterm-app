@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
-import { useRealtimeSync } from '@/lib/useRealtimeSync'
+import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
 import { 
   Users, Search, Filter, Printer, GraduationCap, 
   CalendarDays, CheckCircle2, XCircle, UserMinus, 
@@ -23,8 +23,10 @@ export default function StudentsPage() {
   
   const [classFilter, setClassFilter] = useState<string>('All')
 
-  const fetchStudents = useCallback(async (idToFetch: string) => {
+  // 1. Pure Fetch Function
+  const fetchStudents = useCallback(async (idToFetch: string, isMounted: boolean = true) => {
     try {
+      if (isMounted) setLoading(true)
       const { data, error } = await supabase
         .from('students')
         .select(`
@@ -34,15 +36,21 @@ export default function StudentsPage() {
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      if (data) setStudents(data)
+      if (data && isMounted) setStudents(data)
     } catch (err: any) {
       console.error("Fetch error:", JSON.stringify(err, null, 2) || err.message)
-      toast.error("Failed to load student roster.")
+      if (isMounted) toast.error("Failed to load student roster.")
     } finally {
-      setLoading(false)
+      if (isMounted) setLoading(false)
     }
   }, [])
 
+  // 2. THE HOOK GOES HERE: At the top level!
+  useRealtimeSync(() => {
+    if (schoolId) fetchStudents(schoolId, true)
+  })
+
+  // 3. Normal Initialization
   useEffect(() => {
     let isMounted = true
 
@@ -73,11 +81,11 @@ export default function StudentsPage() {
         if (isMounted) {
           setTargetSchool(schoolProfile.name)
           setSchoolId(activeUserId)
-          await fetchStudents(activeUserId)
+          await fetchStudents(activeUserId, isMounted)
         }
       } catch (err) {
         console.error("Auth Error:", err)
-        toast.error("Authentication failed. Please log in again.")
+        if (isMounted) toast.error("Authentication failed. Please log in again.")
       } finally {
         if (isMounted) setIsInitializing(false)
       }
@@ -93,7 +101,6 @@ export default function StudentsPage() {
       isMounted = false
       authListener.subscription.unsubscribe()
     }
-    useRealtimeSync(() => initializePage())
   }, [router, fetchStudents])
 
   // Custom Confirmation Toast for Withdrawals
@@ -149,8 +156,8 @@ export default function StudentsPage() {
         .eq('student_id', studentId)
 
       toast.success("Student successfully withdrawn.", { id: loadingToast })
-      if (schoolId) fetchStudents(schoolId) 
-      useRealtimeSync(() => fetchStudents(schoolId as string))
+      if (schoolId) fetchStudents(schoolId, true) 
+      
     } catch (err: any) { 
       toast.error(`Withdrawal Error: ${err.message}`, { id: loadingToast })
     } finally { 

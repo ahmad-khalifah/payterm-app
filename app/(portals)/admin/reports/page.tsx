@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
-
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 import { 
   LayoutDashboard, TrendingUp, BarChart3, 
   CheckCircle2, AlertCircle, Building2, FileSearch
@@ -35,119 +35,125 @@ export default function AdminReportsPage() {
   const [schoolPerformance, setSchoolPerformance] = useState<any[]>([])
   const [chartData, setChartData] = useState<any[]>([])
 
+  // 1. Pure Fetch Function
+  const fetchPlatformData = useCallback(async (isMounted: boolean = true, isSilent: boolean = false) => {
+    try {
+      if (isMounted && !isSilent) setLoading(true)
+      const { data: plansData, error: plansError } = await supabase
+        .from('active_plans')
+        .select('school_id, total_fee, amount_paid, status, created_at')
+
+      if (plansError) throw plansError
+
+      const { data: withdrawalsData, error: withdrawalsError } = await supabase
+        .from('withdrawal_requests')
+        .select('amount, status')
+        .in('status', ['Paid', 'Approved'])
+
+      if (withdrawalsError) throw withdrawalsError
+
+      const { data: schoolsData, error: schoolsError } = await supabase
+        .from('partner_schools')
+        .select('id, name, tier')
+
+      if (schoolsError) throw schoolsError
+
+      let volume = 0, revenue = 0, arrears = 0, deployed = 0, parentCount = 0
+      const schoolMap = new Map()
+
+      if (withdrawalsData) {
+        deployed = withdrawalsData.reduce((sum, req) => sum + Number(req.amount), 0)
+      }
+
+      // --- GRAPH DATA INITIALIZATION ---
+      const monthlyMap = new Map()
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date()
+        d.setMonth(d.getMonth() - i)
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        const label = d.toLocaleString('default', { month: 'short', year: '2-digit' })
+        monthlyMap.set(key, { name: label, Volume: 0, Revenue: 0, Deployed: 0, Arrears: 0 })
+      }
+
+      if (plansData) {
+        parentCount = plansData.length
+        
+        plansData.forEach((plan: any) => {
+          const totalFee = Number(plan.total_fee) || 0
+          const paid = Number(plan.amount_paid) || 0
+          const progress = totalFee > 0 ? paid / totalFee : 0
+          
+          const baseTuition = totalFee / 1.05
+          const paytermCut = totalFee - baseTuition
+
+          const school = schoolsData?.find((s: any) => s.id === plan.school_id)
+          const schoolName = (school as any)?.name as string || 'Unassigned'
+          const schoolId = plan.school_id || 'Unknown'
+          const isTier2 = school && (school as any).tier === 'Tier 2'
+          const payoutRate = isTier2 ? 0.70 : 0.60
+          const remainderRate = isTier2 ? 0.30 : 0.40
+
+          // Add to totals
+          volume += totalFee
+          revenue += paytermCut
+           arrears += (totalFee - paid)
+
+          // --- POPULATE GRAPH DATA OVER TIME ---
+          const d = plan.created_at ? new Date(plan.created_at) : new Date()
+          const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+          
+          if (!monthlyMap.has(monthKey)) {
+             const label = d.toLocaleString('default', { month: 'short', year: '2-digit' })
+             monthlyMap.set(monthKey, { name: label, Volume: 0, Revenue: 0, Deployed: 0, Arrears: 0 })
+          }
+
+          const monthStats = monthlyMap.get(monthKey)
+          monthStats.Volume += totalFee
+          monthStats.Revenue += paytermCut
+          monthStats.Arrears += (totalFee - paid)
+
+          let planDeployed = 0
+          if (progress >= 0.59) planDeployed += (baseTuition * payoutRate)
+          if (progress >= 0.99) planDeployed += (baseTuition * remainderRate)
+          monthStats.Deployed += planDeployed
+
+          // --- MAP DATA TO SPECIFIC SCHOOLS ---
+          if (!schoolMap.has(schoolId)) {
+            schoolMap.set(schoolId, {
+              id: schoolId, name: schoolName, volume: 0, revenueGenerated: 0, arrears: 0, defaults: 0
+            })
+          }
+
+          const schoolStats = schoolMap.get(schoolId)
+          schoolStats.volume += totalFee
+          schoolStats.revenueGenerated += paytermCut
+          schoolStats.arrears += (totalFee - paid)
+          if (plan.status === 'Default' || plan.status === 'Late') schoolStats.defaults += 1
+        })
+      }
+
+      if (isMounted) {
+        setMetrics({ totalVolume: volume, platformRevenue: revenue, capitalDeployed: deployed, totalArrears: arrears, activeSchools: schoolMap.size, totalParents: parentCount })
+        setSchoolPerformance(Array.from(schoolMap.values()).sort((a, b) => b.revenueGenerated - a.revenueGenerated))
+        
+        const sortedKeys = Array.from(monthlyMap.keys()).sort()
+        setChartData(sortedKeys.map(k => monthlyMap.get(k)))
+      }
+
+    } catch (err: any) {
+      console.error("Reports Fetch Error:", err.message)
+      if (isMounted && !isSilent) toast.error("Failed to compile financial reports.")
+    } finally {
+      if (isMounted && !isSilent) setLoading(false)
+    }
+  }, [])
+
+  // 2. THE HOOK GOES HERE: At the top level!
+  useRealtimeSync(() => fetchPlatformData(true, true))
+
+  // 3. Normal Component Initialization
   useEffect(() => {
     let isMounted = true
-
-    const fetchPlatformData = async () => {
-      try {
-        const { data: plansData, error: plansError } = await supabase
-          .from('active_plans')
-          .select('school_id, total_fee, amount_paid, status, created_at')
-
-        if (plansError) throw plansError
-
-        const { data: withdrawalsData, error: withdrawalsError } = await supabase
-          .from('withdrawal_requests')
-          .select('amount, status')
-          .in('status', ['Paid', 'Approved'])
-
-        if (withdrawalsError) throw withdrawalsError
-
-        const { data: schoolsData, error: schoolsError } = await supabase
-          .from('partner_schools')
-          .select('id, name, tier')
-
-        if (schoolsError) throw schoolsError
-
-        let volume = 0, revenue = 0, arrears = 0, deployed = 0, parentCount = 0
-        const schoolMap = new Map()
-
-        if (withdrawalsData) {
-          deployed = withdrawalsData.reduce((sum, req) => sum + Number(req.amount), 0)
-        }
-
-        // --- GRAPH DATA INITIALIZATION ---
-        const monthlyMap = new Map()
-        for (let i = 5; i >= 0; i--) {
-          const d = new Date()
-          d.setMonth(d.getMonth() - i)
-          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-          const label = d.toLocaleString('default', { month: 'short', year: '2-digit' })
-          monthlyMap.set(key, { name: label, Volume: 0, Revenue: 0, Deployed: 0, Arrears: 0 })
-        }
-
-        if (plansData) {
-          parentCount = plansData.length
-          
-          plansData.forEach((plan: any) => {
-            const totalFee = Number(plan.total_fee) || 0
-            const paid = Number(plan.amount_paid) || 0
-            const progress = totalFee > 0 ? paid / totalFee : 0
-            
-            const baseTuition = totalFee / 1.05
-            const paytermCut = totalFee - baseTuition
-
-            const school = schoolsData?.find(s => s.id === plan.school_id)
-            const schoolName = school?.name || 'Unassigned'
-            const schoolId = plan.school_id || 'Unknown'
-            const isTier2 = school && (school as any).tier === 'Tier 2'
-            const payoutRate = isTier2 ? 0.70 : 0.60
-            const remainderRate = isTier2 ? 0.30 : 0.40
-
-            // Add to totals
-            volume += totalFee
-            revenue += paytermCut
-            arrears += (totalFee - paid)
-
-            // --- POPULATE GRAPH DATA OVER TIME ---
-            const d = plan.created_at ? new Date(plan.created_at) : new Date()
-            const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-            
-            if (!monthlyMap.has(monthKey)) {
-               const label = d.toLocaleString('default', { month: 'short', year: '2-digit' })
-               monthlyMap.set(monthKey, { name: label, Volume: 0, Revenue: 0, Deployed: 0, Arrears: 0 })
-            }
-
-            const monthStats = monthlyMap.get(monthKey)
-            monthStats.Volume += totalFee
-            monthStats.Revenue += paytermCut
-            monthStats.Arrears += (totalFee - paid)
-
-            let planDeployed = 0
-            if (progress >= 0.59) planDeployed += (baseTuition * payoutRate)
-            if (progress >= 0.99) planDeployed += (baseTuition * remainderRate)
-            monthStats.Deployed += planDeployed
-
-            // --- MAP DATA TO SPECIFIC SCHOOLS ---
-            if (!schoolMap.has(schoolId)) {
-              schoolMap.set(schoolId, {
-                id: schoolId, name: schoolName, volume: 0, revenueGenerated: 0, arrears: 0, defaults: 0
-              })
-            }
-
-            const schoolStats = schoolMap.get(schoolId)
-            schoolStats.volume += totalFee
-            schoolStats.revenueGenerated += paytermCut
-            schoolStats.arrears += (totalFee - paid)
-            if (plan.status === 'Default' || plan.status === 'Late') schoolStats.defaults += 1
-          })
-        }
-
-        if (isMounted) {
-          setMetrics({ totalVolume: volume, platformRevenue: revenue, capitalDeployed: deployed, totalArrears: arrears, activeSchools: schoolMap.size, totalParents: parentCount })
-          setSchoolPerformance(Array.from(schoolMap.values()).sort((a, b) => b.revenueGenerated - a.revenueGenerated))
-          
-          const sortedKeys = Array.from(monthlyMap.keys()).sort()
-          setChartData(sortedKeys.map(k => monthlyMap.get(k)))
-        }
-
-      } catch (err: any) {
-        console.error("Reports Fetch Error:", err.message)
-        toast.error("Failed to compile financial reports.")
-      } finally {
-        if (isMounted) setLoading(false)
-      }
-    }
 
     const initializePage = async () => {
       try {
@@ -162,7 +168,7 @@ export default function AdminReportsPage() {
         const { data: hqData } = await supabase
           .from('hq_users')
           .select('role')
-          .eq('user_email', user.email)
+          .eq('user_email', user.email as string || '')
           .maybeSingle()
 
         if (!hqData) {
@@ -172,7 +178,7 @@ export default function AdminReportsPage() {
         }
 
         if (isMounted) {
-          await fetchPlatformData()
+          await fetchPlatformData(isMounted, false)
         }
 
       } catch (err) {
@@ -194,7 +200,7 @@ export default function AdminReportsPage() {
       isMounted = false
       authListener.subscription.unsubscribe()
     }
-  }, [router])
+  }, [router, fetchPlatformData])
 
   const formatYAxis = (val: any) => {
     const num = Number(val) || 0

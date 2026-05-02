@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import toast from 'react-hot-toast'
-import { useRealtimeSync } from '@/lib/useRealtimeSync'
+import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- Adjust this path if necessary!
 
 import { 
   Building2, Users, AlertTriangle, Wallet, 
@@ -38,91 +38,96 @@ export default function AdminDashboard() {
     overdraftExposure: 0 
   })
 
+  // 1. Properly lift fetch function into a useCallback OUTSIDE of useEffect
+  const fetchLiveStats = useCallback(async (isMounted: boolean = true, isSilent: boolean = false) => {
+    try {
+      setFetchError(null)
+      if (isMounted && !isSilent) setLoading(true)
+
+      const schoolsResponse = await supabase.from('partner_schools').select('*')
+      if (schoolsResponse.error) throw new Error(`Schools Table Error: ${schoolsResponse.error.message}`)
+
+      const studentsResponse = await supabase.from('students').select('*')
+      if (studentsResponse.error) throw new Error(`Students Table Error: ${studentsResponse.error.message}`)
+
+      const plansResponse = await supabase.from('active_plans').select('*')
+      if (plansResponse.error) throw new Error(`Plans Table Error: ${plansResponse.error.message}`)
+
+      const schoolsData = schoolsResponse.data || []
+      const studentData = studentsResponse.data || []
+      const planData = plansResponse.data || []
+
+      let parentCount = 0
+      let vault = 0
+      let deployed = 0
+      let recoverable = 0
+      let revenue = 0
+      let overdraft = 0
+      
+      const activeSchoolsCount = schoolsData.filter((s: any) => s.status === 'Active').length
+
+      studentData.forEach((student: any) => {
+        const studentPlan = planData.find((p: any) => p.student_id === student.id && p.status !== 'Completed')
+        if (!studentPlan) return
+        
+        parentCount++
+
+        const totalInvoice = Number(studentPlan.total_fee) || 0
+        const { fee: serviceFee, base: baseTuition } = getFeeBreakdown(totalInvoice)
+        const amountPaid = Number(studentPlan.amount_paid) || 0
+        const progress = totalInvoice > 0 ? (amountPaid / totalInvoice) : 0
+
+        vault += amountPaid
+        
+        if (amountPaid > 0) revenue += serviceFee
+
+        const school = schoolsData.find((s: any) => s.id === studentPlan.school_id)
+        const isTier2 = school && (school as any).tier === 'Tier 2'
+        const payoutRate = isTier2 ? 0.70 : 0.60
+        
+        const isVerified = student.enrollment_status === 'Verified' || studentPlan.status === 'Active'
+        
+        if (isVerified) {
+          if (progress >= 0.59 && progress < 0.99) {
+            deployed += (baseTuition * payoutRate)
+            recoverable += (totalInvoice - amountPaid) 
+            if (isTier2) overdraft += (baseTuition * 0.10)
+          } else if (progress >= 0.99) {
+            deployed += baseTuition 
+          }
+        }
+      })
+
+      const activeFloat = Math.max(0, deployed - (vault - revenue))
+
+      if (isMounted) {
+        setStats({
+          schools: activeSchoolsCount,
+          parents: parentCount,
+          escrowVault: vault,
+          capitalDeployed: deployed,
+          recoverable: recoverable,
+          revenue: revenue,
+          personalFloat: activeFloat,
+          overdraftExposure: overdraft
+        })
+        setFetchError(null)
+      }
+
+    } catch (err: any) {
+      console.error("Dashboard fetch error:", err)
+      if (isMounted && !isSilent) setFetchError(err.message || "Failed to fetch data from Supabase.")
+    } finally {
+      if (isMounted && !isSilent) setLoading(false)
+    }
+  }, [])
+
+  // 2. THE HOOK GOES HERE, AT THE TOP LEVEL
+  useRealtimeSync(() => fetchLiveStats(true, true))
+
+  // 3. Normal initial load
   useEffect(() => {
     let isMounted = true;
-
-    const fetchLiveStats = async () => {
-      try {
-        setFetchError(null)
-
-        const schoolsResponse = await supabase.from('partner_schools').select('*')
-        if (schoolsResponse.error) throw new Error(`Schools Table Error: ${schoolsResponse.error.message}`)
-
-        const studentsResponse = await supabase.from('students').select('*')
-        if (studentsResponse.error) throw new Error(`Students Table Error: ${studentsResponse.error.message}`)
-
-        const plansResponse = await supabase.from('active_plans').select('*')
-        if (plansResponse.error) throw new Error(`Plans Table Error: ${plansResponse.error.message}`)
-
-        const schoolsData = schoolsResponse.data || []
-        const studentData = studentsResponse.data || []
-        const planData = plansResponse.data || []
-
-        let parentCount = 0
-        let vault = 0
-        let deployed = 0
-        let recoverable = 0
-        let revenue = 0
-        let overdraft = 0
-        
-        const activeSchoolsCount = schoolsData.filter((s: any) => s.status === 'Active').length
-        useRealtimeSync(() => fetchLiveStats())
-
-        studentData.forEach((student: any) => {
-          const studentPlan = planData.find((p: any) => p.student_id === student.id && p.status !== 'Completed')
-          if (!studentPlan) return
-          
-          parentCount++
-
-          const totalInvoice = Number(studentPlan.total_fee) || 0
-          const { fee: serviceFee, base: baseTuition } = getFeeBreakdown(totalInvoice)
-          const amountPaid = Number(studentPlan.amount_paid) || 0
-          const progress = totalInvoice > 0 ? (amountPaid / totalInvoice) : 0
-
-          vault += amountPaid
-          
-          if (amountPaid > 0) revenue += serviceFee
-
-          const school = schoolsData.find((s: any) => s.id === studentPlan.school_id)
-          const isTier2 = school && (school as any).tier === 'Tier 2'
-          const payoutRate = isTier2 ? 0.70 : 0.60
-          
-          const isVerified = student.enrollment_status === 'Verified' || studentPlan.status === 'Active'
-          
-          if (isVerified) {
-            if (progress >= 0.59 && progress < 0.99) {
-              deployed += (baseTuition * payoutRate)
-              recoverable += (totalInvoice - amountPaid) 
-              if (isTier2) overdraft += (baseTuition * 0.10)
-            } else if (progress >= 0.99) {
-              deployed += baseTuition 
-            }
-          }
-        })
-
-        const activeFloat = Math.max(0, deployed - (vault - revenue))
-
-        if (isMounted) {
-          setStats({
-            schools: activeSchoolsCount,
-            parents: parentCount,
-            escrowVault: vault,
-            capitalDeployed: deployed,
-            recoverable: recoverable,
-            revenue: revenue,
-            personalFloat: activeFloat,
-            overdraftExposure: overdraft
-          })
-          setFetchError(null)
-        }
-
-      } catch (err: any) {
-        console.error("Dashboard fetch error:", err)
-        if (isMounted) setFetchError(err.message || "Failed to fetch data from Supabase.")
-      } finally {
-        if (isMounted) setLoading(false)
-      }
-    }
 
     const initializePage = async () => {
       try {
@@ -146,8 +151,10 @@ export default function AdminDashboard() {
           return
         }
 
-        // If authenticated as HQ, fetch the stats
-        await fetchLiveStats()
+        // If authenticated as HQ, fetch the stats normally on first load
+        if (isMounted) {
+           await fetchLiveStats(isMounted, false)
+        }
 
       } catch (err) {
         console.error("Initialization Error:", err)
@@ -160,19 +167,15 @@ export default function AdminDashboard() {
 
     initializePage()
 
-    const handleSilentRefresh = () => { if (isMounted) fetchLiveStats() }
-    window.addEventListener('payterm-db-update', handleSilentRefresh)
-
     const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') router.push('/admin-login')
     })
 
     return () => { 
       isMounted = false 
-      window.removeEventListener('payterm-db-update', handleSilentRefresh)
       authListener.subscription.unsubscribe()
     }
-  }, [router])
+  }, [router, fetchLiveStats])
 
   if (isInitializing) return <div className="p-10 text-center font-bold text-[#0a1128] tracking-widest uppercase text-sm h-screen flex items-center justify-center animate-pulse">Initializing HQ Terminal...</div>
 

@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
 import { RefreshCcw, User, MessageSquare, ChevronDown, Send } from 'lucide-react'
-import { useRealtimeSync } from '@/lib/useRealtimeSync'
+import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
 
 export default function RestructurePage() {
   const [loading, setLoading] = useState(true)
@@ -14,38 +14,46 @@ export default function RestructurePage() {
   const [selectedStudent, setSelectedStudent] = useState('')
   const [reason, setReason] = useState('')
 
-  useEffect(() => {
-    const fetchStudents = async () => {
-      try {
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
-        
-        if (authError || !user) {
-          return // Handled by layout/middleware
-        }
+  // 1. Pure Fetch Function
+  const fetchStudents = useCallback(async (isMounted: boolean = true) => {
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      
+      if (authError || !user) {
+        return // Handled by layout/middleware
+      }
 
-        const { data, error } = await supabase
-          .from('students')
-          .select('id, full_name, student_class') 
-          .eq('parent_id', user.id)
+      const { data, error } = await supabase
+        .from('students')
+        .select('id, full_name, student_class') 
+        .eq('parent_id', user.id)
 
-        if (error) throw error
-        
-        if (data) {
-          setStudents(data)
-          if (data.length > 0) setSelectedStudent(data[0].id)
-        }
-      } catch (err: any) {
-        console.error("Error fetching students:", err.message)
-        toast.error("Failed to load students. Please refresh.")
-      } finally {
+      if (error) throw error
+      
+      if (data && isMounted) {
+        setStudents(data)
+        if (data.length > 0 && !selectedStudent) setSelectedStudent(data[0].id)
+      }
+    } catch (err: any) {
+      console.error("Error fetching students:", err.message)
+      if (isMounted) toast.error("Failed to load students. Please refresh.")
+    } finally {
+      if (isMounted) {
         setLoading(false)
         setIsInitializing(false)
       }
     }
-    
-    fetchStudents()
-    useRealtimeSync(() => fetchStudents())
-  }, [])
+  }, [selectedStudent])
+
+  // 2. THE HOOK GOES HERE: At the top level!
+  useRealtimeSync(() => fetchStudents(true))
+
+  // 3. Normal Component Initialization
+  useEffect(() => {
+    let isMounted = true;
+    fetchStudents(isMounted)
+    return () => { isMounted = false }
+  }, [fetchStudents])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

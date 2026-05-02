@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../../../lib/supabase' // Adjust path if needed
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { LogOut, User, Mail, Phone, ShieldCheck } from 'lucide-react'
-import { useRealtimeSync } from '@/lib/useRealtimeSync'
+import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
 
 export default function ParentProfilePage() {
   const router = useRouter()
@@ -13,40 +13,48 @@ export default function ParentProfilePage() {
   const [isInitializing, setIsInitializing] = useState(true) // Session lock
   const [parentData, setParentData] = useState<any>(null)
 
-  useEffect(() => {
-    const fetchSession = async () => {
-      try {
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
-        
-        if (authError || !user) {
-          toast.error("Session expired. Please log in again.")
-          router.push('/parent-login')
-          return
-        }
+  // 1. Pure Fetch Function
+  const fetchSession = useCallback(async (isMounted: boolean = true) => {
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      
+      if (authError || !user) {
+        if (isMounted) toast.error("Session expired. Please log in again.")
+        router.push('/parent-login')
+        return
+      }
 
-        const { data: profile, error: dbError } = await supabase
-          .from('parents')
-          .select('*')
-          .eq('id', user.id)
-          .single()
+      const { data: profile, error: dbError } = await supabase
+        .from('parents')
+        .select('*')
+        .eq('id', user.id)
+        .single()
 
-        if (dbError) throw dbError
-        
-        setParentData(profile)
+      if (dbError) throw dbError
+      
+      if (isMounted) setParentData(profile)
 
-      } catch (err: any) {
-        console.error("Profile Error:", err)
-        toast.error("Profile data is missing or out of sync.")
-        router.push('/parent') 
-      } finally {
+    } catch (err: any) {
+      console.error("Profile Error:", err)
+      if (isMounted) toast.error("Profile data is missing or out of sync.")
+      router.push('/parent') 
+    } finally {
+      if (isMounted) {
         setLoading(false)
         setIsInitializing(false)
       }
     }
-
-    fetchSession()
-    useRealtimeSync(() => fetchSession())
   }, [router])
+
+  // 2. THE HOOK GOES HERE: At the top level!
+  useRealtimeSync(() => fetchSession(true))
+
+  // 3. Normal Component Initialization
+  useEffect(() => {
+    let isMounted = true;
+    fetchSession(isMounted)
+    return () => { isMounted = false }
+  }, [fetchSession])
 
   const handleLogout = async () => {
     toast.loading("Signing out...", { id: 'logout' })

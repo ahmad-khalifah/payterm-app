@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '../../../../lib/supabase' // Adjust your import path as needed
+import { supabase } from '../../../../lib/supabase' 
 import Link from 'next/link'
 import PaymentPreviewBox from './components/PaymentPreviewBox'
 import toast from 'react-hot-toast'
-import { useRealtimeSync } from '@/lib/useRealtimeSync'
+import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
 
 import { ArrowLeft, User, Building2, CreditCard, AlertCircle, ChevronDown } from 'lucide-react'
 
@@ -28,64 +28,71 @@ export default function AddStudentPage() {
     className: ''
   })
 
-  // 1. Load active schools on mount
-  useEffect(() => {
-    const fetchSchools = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('partner_schools')
-          .select('id, name, state') 
-          .eq('status', 'Active')
-          .order('name', { ascending: true })
+  // 1. Pure fetch function for Schools
+  const fetchSchools = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('partner_schools')
+        .select('id, name, state') 
+        .eq('status', 'Active')
+        .order('name', { ascending: true })
 
-        if (error) throw error
-        if (data) setSchools(data)
-      } catch (err: any) {
-        console.error("Error fetching schools:", err.message)
-        toast.error("Failed to load school directory.")
-      } finally {
-        setLoadingSchools(false)
-      }
+      if (error) throw error
+      if (data) setSchools(data)
+    } catch (err: any) {
+      console.error("Error fetching schools:", err.message)
+      toast.error("Failed to load school directory.")
+    } finally {
+      setLoadingSchools(false)
     }
-    fetchSchools()
-    useRealtimeSync(() => fetchSchools())
   }, [])
 
-  // 2. Load classes strictly when School, Session, and Term are selected
-  useEffect(() => {
+  // 2. Pure fetch function for Classes
+  const fetchClasses = useCallback(async () => {
     if (!form.schoolName || !form.session || !form.term) {
       setAvailableClasses([])
       return
     }
 
-    const fetchClasses = async () => {
-      setLoadingClasses(true)
-      try {
-        const { data, error } = await supabase
-          .from('class_fees')
-          .select('class_name, parent_total_fee, mid_term_date') 
-          .eq('school_name', form.schoolName)
-          .eq('academic_session', form.session)
-          .eq('term', form.term)
-          .order('class_name', { ascending: true })
+    setLoadingClasses(true)
+    try {
+      const { data, error } = await supabase
+        .from('class_fees')
+        .select('class_name, parent_total_fee, mid_term_date') 
+        .eq('school_name', form.schoolName)
+        .eq('academic_session', form.session)
+        .eq('term', form.term)
+        .order('class_name', { ascending: true })
 
-        if (error) throw error
-        if (data) setAvailableClasses(data)
-        
-        // Reset class selection when parent variables change
-        setForm(prev => ({ ...prev, className: '' }))
-      } catch (err: any) {
-        console.error("Error fetching classes:", err.message)
-      } finally {
-        setLoadingClasses(false)
-      }
+      if (error) throw error
+      if (data) setAvailableClasses(data)
+      
+    } catch (err: any) {
+      console.error("Error fetching classes:", err.message)
+    } finally {
+      setLoadingClasses(false)
     }
-
-    fetchClasses()
-    useRealtimeSync(() => fetchClasses())
   }, [form.schoolName, form.session, form.term])
 
-  // 3. Handle strict submission
+  // 3. THE HOOKS GO HERE: At the top level!
+  useRealtimeSync(() => fetchSchools())
+  useRealtimeSync(() => fetchClasses())
+
+  // 4. Normal Component Initialization (Initial Load)
+  useEffect(() => {
+    fetchSchools()
+  }, [fetchSchools])
+
+  // 5. Normal dependency-based fetching (When form values change)
+  useEffect(() => {
+    fetchClasses()
+    // Reset class selection when parent variables change
+    if (form.schoolName && form.session && form.term) {
+       setForm(prev => ({ ...prev, className: '' }))
+    }
+  }, [fetchClasses, form.schoolName, form.session, form.term])
+
+  // Handle strict submission
   const handleLinkStudent = async (e: React.FormEvent) => {
     e.preventDefault()
     

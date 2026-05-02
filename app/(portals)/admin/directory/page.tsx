@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
+import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
 
-// --- NEW LUCIDE ICONS ---
 import { Users, Search, User, Mail, Phone, CheckCircle2, FileSearch, Calendar } from 'lucide-react'
 
 export default function AdminParentsDirectory() {
@@ -15,9 +15,10 @@ export default function AdminParentsDirectory() {
   const [parents, setParents] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
 
-  const fetchAllParents = useCallback(async (isMounted: boolean = true) => {
+  // 1. Pure Fetch Function
+  const fetchAllParents = useCallback(async (isMounted: boolean = true, isSilent: boolean = false) => {
     try {
-      if (isMounted) setLoading(true)
+      if (isMounted && !isSilent) setLoading(true)
       const { data, error } = await supabase
         .from('parents')
         .select('id, full_name, email, phone, created_at')
@@ -33,12 +34,16 @@ export default function AdminParentsDirectory() {
       }
     } catch (err: any) {
       console.error("Error fetching parents:", err.message)
-      if (isMounted) toast.error("Failed to load parents directory.")
+      if (isMounted && !isSilent) toast.error("Failed to load parents directory.")
     } finally {
-      if (isMounted) setLoading(false)
+      if (isMounted && !isSilent) setLoading(false)
     }
   }, [])
 
+  // 2. THE HOOK GOES HERE: At the top level!
+  useRealtimeSync(() => fetchAllParents(true, true))
+
+  // 3. Normal Component Initialization
   useEffect(() => {
     let isMounted = true
 
@@ -65,7 +70,8 @@ export default function AdminParentsDirectory() {
         }
 
         if (isMounted) {
-          await fetchAllParents(isMounted)
+          // Initial non-silent load
+          await fetchAllParents(isMounted, false)
         }
 
       } catch (err) {
@@ -100,7 +106,6 @@ export default function AdminParentsDirectory() {
   return (
     <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in pb-20 relative">
       
-      {/* HEADER */}
       <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h1 className="text-3xl font-extrabold text-[#0a1128] tracking-tight mb-2 flex items-center gap-3">
@@ -113,7 +118,6 @@ export default function AdminParentsDirectory() {
 
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden relative">
         
-        {/* CONTROL BAR */}
         <div className="p-5 md:p-6 border-b border-gray-100 bg-white flex flex-col sm:flex-row justify-between sm:items-center gap-4">
           <h2 className="text-lg font-bold text-[#0a1128]">Global Directory</h2>
           

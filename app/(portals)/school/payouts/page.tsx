@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation' 
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
-import { useRealtimeSync } from '@/lib/useRealtimeSync'
+import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
 import { Wallet, ArrowDownCircle, AlertCircle } from 'lucide-react'
 
 import WithdrawalForm from './Components/WithdrawalForm'
@@ -32,9 +32,10 @@ export default function PayoutsPage() {
   const [schoolId, setSchoolId] = useState<string | null>(null) 
   const [schoolTier, setSchoolTier] = useState<string>('Tier 1')
 
-  const fetchPayoutData = useCallback(async (uuid: string, name: string, tier: string, isMounted: boolean = true) => {
+  // 1. Extract the fetch function purely, with no hooks inside it
+  const fetchPayoutData = useCallback(async (uuid: string, name: string, tier: string, isMounted: boolean = true, isSilent: boolean = false) => {
     try {
-      if (isMounted) {
+      if (isMounted && !isSilent) {
         setLoading(true)
         setFetchError(null)
       }
@@ -94,14 +95,22 @@ export default function PayoutsPage() {
 
     } catch (err: any) {
       console.error("Fetch Error:", err)
-      if (isMounted) setFetchError(err.message)
-      toast.error("Failed to sync payout ledger.")
-      useRealtimeSync(() => fetchPayoutData(uuid, name, tier, isMounted))
+      if (isMounted && !isSilent) setFetchError(err.message)
+      if (isMounted && !isSilent) toast.error("Failed to sync payout ledger.")
     } finally {
-      if (isMounted) setLoading(false)
+      if (isMounted && !isSilent) setLoading(false)
     }
   }, [])
 
+  // 2. THE HOOK GOES HERE: At the top level of the component!
+  // We only run the silent fetch if the IDs have been loaded into state.
+  useRealtimeSync(() => {
+    if (schoolId && targetSchool && schoolTier) {
+      fetchPayoutData(schoolId, targetSchool, schoolTier, true, true)
+    }
+  })
+
+  // 3. Normal Component Initialization
   useEffect(() => {
     let isMounted = true
 
@@ -136,7 +145,8 @@ export default function PayoutsPage() {
           const fetchedTier = (schoolProfile as any).tier || 'Tier 1'
           setSchoolTier(fetchedTier)
           
-          await fetchPayoutData(activeUserId, schoolProfile.name as string, fetchedTier, isMounted) 
+          // Initial non-silent load
+          await fetchPayoutData(activeUserId, schoolProfile.name as string, fetchedTier, isMounted, false) 
         }
       } catch (err) {
         console.error("Initialization Error:", err)
@@ -208,8 +218,8 @@ export default function PayoutsPage() {
             schoolId={schoolId}
             onSuccess={() => {
               if (schoolId && targetSchool) {
-                fetchPayoutData(schoolId, targetSchool, schoolTier, true)
-                useRealtimeSync(() => fetchPayoutData(schoolId, targetSchool, schoolTier, true))
+                // When they submit a form, fetch fresh data silently right away
+                fetchPayoutData(schoolId, targetSchool, schoolTier, true, true)
               }
             }}
           />

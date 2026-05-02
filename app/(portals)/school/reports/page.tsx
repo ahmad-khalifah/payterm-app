@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
-import { useRealtimeSync } from '@/lib/useRealtimeSync'
-// --- NEW LUCIDE ICONS ---
+import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
 import { 
   BarChart3, Download, Printer, FileSearch, User, 
   Phone, GraduationCap, CheckCircle2, AlertCircle, Clock 
@@ -20,6 +19,35 @@ export default function ReportsPage() {
   const [targetSchool, setTargetSchool] = useState<string | null>(null)
   const [schoolId, setSchoolId] = useState<string | null>(null) 
 
+  // 1. Pure Fetch Function
+  const fetchReportData = useCallback(async (idToFetch: string, isMounted: boolean = true) => {
+    try {
+      if (isMounted) setLoading(true)
+      const { data, error } = await supabase
+        .from('students')
+        .select(`
+          full_name, student_class, enrollment_status,
+          parents ( full_name, phone ),
+          active_plans ( total_fee, amount_paid, status, next_payment_date )
+        `)
+        .eq('school_id', idToFetch) 
+      
+      if (error) throw error
+      if (isMounted && data) setStudents(data)
+    } catch (err: any) {
+      console.error("Report Fetch Error:", err.message)
+      if (isMounted) toast.error("Failed to load report data.")
+    } finally {
+      if (isMounted) setLoading(false)
+    }
+  }, [])
+
+  // 2. THE HOOK GOES HERE: At the top level!
+  useRealtimeSync(() => {
+    if (schoolId) fetchReportData(schoolId, true)
+  })
+
+  // 3. Normal Initialization
   useEffect(() => {
     let isMounted = true
 
@@ -46,10 +74,11 @@ export default function ReportsPage() {
         if (isMounted) {
           setTargetSchool(schoolProfile.name)
           setSchoolId(user.id) 
+          await fetchReportData(user.id, isMounted)
         }
       } catch (err) {
         console.error("Auth Error:", err)
-        toast.error("Could not authenticate session.")
+        if (isMounted) toast.error("Could not authenticate session.")
       } finally {
         if (isMounted) setIsInitializing(false)
       }
@@ -65,39 +94,8 @@ export default function ReportsPage() {
       isMounted = false
       authListener.subscription.unsubscribe()
     }
-  }, [router])
+  }, [router, fetchReportData])
 
-  useEffect(() => {
-    if (!schoolId) return
-    let isMounted = true
-
-    const fetchReportData = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('students')
-          .select(`
-            full_name, student_class, enrollment_status,
-            parents ( full_name, phone ),
-            active_plans ( total_fee, amount_paid, status, next_payment_date )
-          `)
-          .eq('school_id', schoolId) 
-        
-        if (error) throw error
-        if (isMounted && data) setStudents(data)
-      } catch (err: any) {
-        console.error("Report Fetch Error:", err.message)
-        toast.error("Failed to load report data.")
-      } finally {
-        if (isMounted) setLoading(false)
-      }
-    }
-    
-    fetchReportData()
-    useRealtimeSync(() => fetchReportData())
-    return () => {
-      isMounted = false
-    }
-  }, [schoolId])
 
   const downloadCSV = () => {
     try {
@@ -134,7 +132,6 @@ export default function ReportsPage() {
       link.remove()
       
       toast.success("Report downloaded successfully!")
-      useRealtimeSync(() => downloadCSV())
     } catch (err) {
       toast.error("Failed to generate CSV export.")
     }

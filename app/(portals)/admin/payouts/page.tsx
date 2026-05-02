@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
-
+import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
 import { 
   Banknote, ShieldCheck, X, Building2, Landmark, 
   CheckCircle2, AlertCircle, Clock, Check, XCircle
@@ -24,8 +24,10 @@ export default function AdminPayoutsPage() {
   const [confirmAmount, setConfirmAmount] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const fetchRequests = useCallback(async (isMounted: boolean = true) => {
+  // 1. Pure Fetch Function
+  const fetchRequests = useCallback(async (isMounted: boolean = true, isSilent: boolean = false) => {
     try {
+      if (isMounted && !isSilent) setLoading(true)
       const { data, error } = await supabase
         .from('withdrawal_requests')
         .select('*')
@@ -35,12 +37,16 @@ export default function AdminPayoutsPage() {
       if (data && isMounted) setRequests(data)
     } catch (err) {
       console.error("Fetch Error:", err)
-      if (isMounted) toast.error("Failed to sync payout ledger.")
+      if (isMounted && !isSilent) toast.error("Failed to sync payout ledger.")
     } finally {
-      if (isMounted) setLoading(false)
+      if (isMounted && !isSilent) setLoading(false)
     }
   }, [])
 
+  // 2. THE HOOK GOES HERE: At the top level!
+  useRealtimeSync(() => fetchRequests(true, true))
+
+  // 3. Normal Component Initialization
   useEffect(() => {
     let isMounted = true
 
@@ -67,7 +73,8 @@ export default function AdminPayoutsPage() {
         }
 
         if (isMounted) {
-          await fetchRequests(isMounted)
+          // Initial non-silent load
+          await fetchRequests(isMounted, false)
         }
 
       } catch (err) {
@@ -84,7 +91,10 @@ export default function AdminPayoutsPage() {
     const channel = supabase
       .channel('admin-payouts-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawal_requests' }, () => {
-         if (isMounted) fetchRequests(isMounted) 
+         // This is a direct supabase table listener that we kept from before. 
+         // Since the hook handles the global sync, you could actually remove this block, 
+         // but it doesn't hurt to keep it specifically for the live green light UI indicator.
+         if (isMounted) fetchRequests(isMounted, true) 
       })
       .subscribe((status) => {
         if (isMounted) {
@@ -129,7 +139,10 @@ export default function AdminPayoutsPage() {
       if (error) throw error
       toast.success("Success! Withdrawal is marked as Approved.", { id: loadingToast })
       closeModal()
-      fetchRequests()
+      
+      // Re-fetch after approval
+      fetchRequests(true, true)
+
     } catch (err: any) { 
       toast.error(`Approval Error: ${err.message}`, { id: loadingToast }) 
     } finally { 
@@ -156,7 +169,10 @@ export default function AdminPayoutsPage() {
                   const { error } = await supabase.from('withdrawal_requests').update({ status: 'Rejected' }).eq('id', id)
                   if (error) throw error
                   toast.success("Request rejected.", { id: loadingToast })
-                  fetchRequests()
+                  
+                  // Re-fetch after rejection
+                  fetchRequests(true, true)
+
                 } catch (err: any) { 
                   toast.error(`Rejection failed: ${err.message}`, { id: loadingToast }) 
                 } finally { setProcessingId(null) }

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
-import { useRealtimeSync } from '@/lib/useRealtimeSync'
+import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
 import { 
   Settings, SlidersHorizontal, Percent, Mail,
   AlertTriangle, Save, UserPlus, ShieldAlert, 
@@ -28,8 +28,11 @@ export default function AdminSettingsPage() {
   const [hqUsers, setHqUsers] = useState<any[]>([])
   const [newUser, setNewUser] = useState({ email: '', role: 'Support Agent' })
 
-  const fetchSettings = useCallback(async (isMounted: boolean = true) => {
+  // 1. Pure Fetch Function
+  const fetchSettings = useCallback(async (isMounted: boolean = true, isSilent: boolean = false) => {
     try {
+      if (isMounted && !isSilent) setLoading(true)
+      
       const { data: configData } = await supabase.from('platform_settings').select('*').eq('id', 1).single()
       
       if (configData && isMounted) {
@@ -44,12 +47,16 @@ export default function AdminSettingsPage() {
 
     } catch (err: any) {
       console.error("Settings Fetch Error:", err)
-      toast.error("Failed to load platform configuration.")
+      if (isMounted && !isSilent) toast.error("Failed to load platform configuration.")
     } finally {
-      if (isMounted) setLoading(false)
+      if (isMounted && !isSilent) setLoading(false)
     }
   }, [])
 
+  // 2. THE HOOK GOES HERE: At the top level!
+  useRealtimeSync(() => fetchSettings(true, true))
+
+  // 3. Normal Component Initialization
   useEffect(() => {
     let isMounted = true
 
@@ -76,8 +83,8 @@ export default function AdminSettingsPage() {
         }
 
         if (isMounted) {
-          await fetchSettings(isMounted)
-          useRealtimeSync(() => fetchSettings(true))
+          // Initial non-silent load
+          await fetchSettings(isMounted, false)
         }
 
       } catch (err) {
@@ -139,6 +146,10 @@ export default function AdminSettingsPage() {
 
       if (error) throw error
       toast.success("Global platform settings updated successfully.", { id: loadingToast })
+      
+      // Re-fetch to confirm update
+      fetchSettings(true, true)
+
     } catch (err: any) {
       toast.error(`Update Failed: ${err.message}`, { id: loadingToast })
     } finally {
@@ -159,7 +170,9 @@ export default function AdminSettingsPage() {
       
       toast.success(`${newUser.email} granted ${newUser.role} access.`, { id: loadingToast })
       setNewUser({ email: '', role: 'Support Agent' })
-      fetchSettings()
+      
+      // Re-fetch table silently
+      fetchSettings(true, true)
     } catch (err: any) {
       toast.error(`Failed to add staff: ${err.message}`, { id: loadingToast })
     } finally {
@@ -196,7 +209,9 @@ export default function AdminSettingsPage() {
       if (error) throw error
       
       toast.success("HQ staff access revoked.", { id: loadingToast })
-      fetchSettings()
+      
+      // Re-fetch table silently
+      fetchSettings(true, true)
     } catch (err: any) {
       toast.error(`Failed to revoke access: ${err.message}`, { id: loadingToast })
     }
@@ -315,7 +330,7 @@ export default function AdminSettingsPage() {
               <button 
                 type="submit" 
                 disabled={isAddingUser}
-                className="w-full bg-[#050a15] text-white px-5 py-4 rounded-xl text-sm font-bold hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-2 group"
+                className="w-full bg-[#0a1128] text-white px-5 py-4 rounded-xl text-sm font-bold hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-2 group"
               >
                 {isAddingUser ? 'Provisioning...' : 'Provision Access'}
                 {!isAddingUser && <Send className="w-4 h-4 transform group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />}

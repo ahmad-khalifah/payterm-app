@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../../../lib/supabase'
 import { ArrowLeft, ReceiptText, Download, CheckCircle2, History as HistoryIcon, SearchX } from 'lucide-react'
 import Link from 'next/link'
@@ -10,70 +10,80 @@ export default function PaymentHistory() {
   const [loading, setLoading] = useState(true)
   const [transactions, setTransactions] = useState<any[]>([])
 
-  useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+  // 1. Pure Fetch Function
+  const fetchHistory = useCallback(async (isMounted: boolean = true) => {
+    try {
+      if (isMounted) setLoading(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-        const { data: studentsData, error: studentError } = await supabase
-          .from('students')
-          .select('id, full_name, student_class')
-          .eq('parent_id', user.id)
+      const { data: studentsData, error: studentError } = await supabase
+        .from('students')
+        .select('id, full_name, student_class')
+        .eq('parent_id', user.id)
 
-        if (studentError) throw studentError
-        if (!studentsData || studentsData.length === 0) {
-          setTransactions([])
-          return
-        }
-
-        const studentIds = studentsData.map(s => s.id)
-
-        const { data: plansData, error: plansError } = await supabase
-          .from('active_plans')
-          .select('id, student_id')
-          .in('student_id', studentIds)
-
-        if (plansError) throw plansError
-        if (!plansData || plansData.length === 0) {
-          setTransactions([])
-          return
-        }
-
-        const planIds = plansData.map(p => p.id)
-
-        const { data: historyData, error: historyError } = await supabase
-          .from('payment_history')
-          .select('*')
-          .in('plan_id', planIds)
-          .order('payment_date', { ascending: false })
-
-        if (historyError) throw historyError
-
-        const formattedTransactions = (historyData || []).map((tx: any) => {
-          const plan = plansData.find((p: any) => p.id === tx.plan_id)
-          const student = plan ? studentsData.find((s: any) => s.id === plan.student_id) : null
-
-          return {
-            ...tx,
-            student_name: student ? student.full_name : 'Unknown Student',
-            student_class: student ? student.student_class : 'N/A',
-            created_at: tx.payment_date || tx.created_at || new Date().toISOString()
-          }
-        })
-
-        setTransactions(formattedTransactions)
-
-      } catch (err: any) {
-        console.error("Error fetching history:", err.message || JSON.stringify(err, null, 2))
-      } finally {
-        setLoading(false)
+      if (studentError) throw studentError
+      if (!studentsData || studentsData.length === 0) {
+        if (isMounted) setTransactions([])
+        return
       }
-    }
 
-    fetchHistory()
-    useRealtimeSync(() => fetchHistory())
+      const studentIds = studentsData.map(s => s.id)
+
+      const { data: plansData, error: plansError } = await supabase
+        .from('active_plans')
+        .select('id, student_id')
+        .in('student_id', studentIds)
+
+      if (plansError) throw plansError
+      if (!plansData || plansData.length === 0) {
+        if (isMounted) setTransactions([])
+        return
+      }
+
+      const planIds = plansData.map(p => p.id)
+
+      const { data: historyData, error: historyError } = await supabase
+        .from('payment_history')
+        .select('*')
+        .in('plan_id', planIds)
+        .order('payment_date', { ascending: false })
+
+      if (historyError) throw historyError
+
+      const formattedTransactions = (historyData || []).map((tx: any) => {
+        const plan = plansData.find((p: any) => p.id === tx.plan_id)
+        const student = plan ? studentsData.find((s: any) => s.id === plan.student_id) : null
+
+        return {
+          ...tx,
+          student_name: student ? student.full_name : 'Unknown Student',
+          student_class: student ? student.student_class : 'N/A',
+          created_at: tx.payment_date || tx.created_at || new Date().toISOString()
+        }
+      })
+
+      if (isMounted) setTransactions(formattedTransactions)
+
+    } catch (err: any) {
+      console.error("Error fetching history:", err.message || JSON.stringify(err, null, 2))
+    } finally {
+      if (isMounted) setLoading(false)
+    }
   }, [])
+
+  // 2. THE HOOK GOES HERE: At the top level!
+  useRealtimeSync(() => fetchHistory(true))
+
+  // 3. Normal Component Initialization
+  useEffect(() => {
+    let isMounted = true
+    fetchHistory(isMounted)
+    
+    return () => {
+      isMounted = false
+    }
+  }, [fetchHistory])
 
   const handleDownloadReceipt = (tx: any) => {
     const receiptWindow = window.open('', '_blank', 'width=600,height=800')

@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
-import { useRealtimeSync } from '@/lib/useRealtimeSync'
+import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
 import { 
   Building2, AlertCircle, CheckCircle2, Users, Search, 
   Filter, Printer, BellRing, User, Phone, GraduationCap, 
@@ -49,7 +49,8 @@ export default function SchoolDashboard() {
     })
   }
 
-  const fetchDashboardData = async (idToFetch: string, isMounted: boolean = true) => {
+  // 1. Pure Fetch Function wrapped in useCallback
+  const fetchDashboardData = useCallback(async (idToFetch: string, isMounted: boolean = true) => {
     try {
       const { data: schoolData } = await supabase
         .from('partner_schools')
@@ -161,12 +162,18 @@ export default function SchoolDashboard() {
       }
     } catch (err: any) {
       console.error("Dashboard Fetch Error:", err.message)
-      toast.error("Failed to load dashboard data.")
+      if (isMounted) toast.error("Failed to load dashboard data.")
     } finally {
       if (isMounted) setLoading(false)
     }
-  }
+  }, [])
 
+  // 2. THE HOOK GOES HERE: At the top level!
+  useRealtimeSync(() => {
+    if (schoolId) fetchDashboardData(schoolId, true)
+  })
+
+  // 3. Normal Initialization
   useEffect(() => {
     let isMounted = true
 
@@ -203,7 +210,7 @@ export default function SchoolDashboard() {
 
       } catch (err: any) {
         console.error("Initialize Error:", err.message)
-        toast.error("Could not authenticate session.")
+        if (isMounted) toast.error("Could not authenticate session.")
       } finally {
         if (isMounted) setIsInitializing(false) // Release the UI lock once secure
       }
@@ -219,12 +226,11 @@ export default function SchoolDashboard() {
       isMounted = false
       authListener.subscription.unsubscribe()
     }
-    useRealtimeSync(() => initializeDashboard())
-  }, [router])
+  }, [router, fetchDashboardData])
 
   const handleNudge = (parentName: string, phone: string, amount: number) => {
     toast.success(`Reminder drafted for ${parentName} regarding their ₦${amount.toLocaleString()} balance.`)
-    useRealtimeSync(() => handleNudge(parentName, phone, amount))
+    // NO HOOK HERE! Just a function to show a UI toast message.
   }
 
   const filteredLedger = householdLedger.filter(item => {

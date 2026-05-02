@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import { approveSchoolAction, suspendSchoolAction, toggleSchoolTierAction } from '@/app/actions/admin'
-import { useRealtimeSync } from '@/lib/useRealtimeSync'
+import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- Ensure this path is correct!
 
 import { 
   Building2, Search, Download, Settings, 
@@ -25,17 +25,16 @@ const getFeeBreakdown = (totalInvoice: number) => {
 export default function AdminSchoolsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
-  const [isInitializing, setIsInitializing] = useState(true) // HQ Session Lock
+  const [isInitializing, setIsInitializing] = useState(true) 
   const [schools, setSchools] = useState<any[]>([])
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  
   const [platformEscrow, setPlatformEscrow] = useState(0)
 
-  // 1. BULLETPROOF FETCH
-  const fetchSchoolsAndEscrow = useCallback(async (isMounted: boolean = true) => {
+  // 1. Fetch Function (NO HOOKS ALLOWED INSIDE HERE)
+  const fetchSchoolsAndEscrow = useCallback(async (isMounted: boolean = true, isSilent: boolean = false) => {
     try {
-      if (isMounted) setLoading(true)
+      if (isMounted && !isSilent) setLoading(true)
 
       const { data: schoolsData, error: schoolError } = await supabase
         .from('partner_schools')
@@ -78,8 +77,6 @@ export default function AdminSchoolsPage() {
           }
         })
 
-        useRealtimeSync(() => fetchSchoolsAndEscrow(true))
-
         return { ...school, unclaimed_escrow: schoolEscrow }
       })
         
@@ -90,44 +87,31 @@ export default function AdminSchoolsPage() {
       
     } catch (err: any) {
       console.error("HQ Fetch Error:", err)
-      if (isMounted && err.message) toast.error("Fetch Error: " + err.message)
+      if (isMounted && err.message && !isSilent) toast.error("Fetch Error: " + err.message)
     } finally {
-      if (isMounted) setLoading(false)
+      if (isMounted && !isSilent) setLoading(false)
     }
   }, [])
 
-  // 2. INITIALIZATION & AUTH
+  // 2. THE CUSTOM HOOK MUST BE AT THE TOP LEVEL OF THE COMPONENT
+  useRealtimeSync(() => fetchSchoolsAndEscrow(true, true))
+
+  // 3. Normal initial load & Auth Check
   useEffect(() => {
     let isMounted = true
 
     const initializePage = async () => {
       try {
         const { data: { user }, error: authError } = await supabase.auth.getUser()
-        
-        if (authError || !user) {
-          router.push('/admin-login')
-          return
-        }
+        if (authError || !user) { router.push('/admin-login'); return }
 
-        // CRITICAL HQ VERIFICATION
-        const { data: hqData } = await supabase
-          .from('hq_users')
-          .select('role')
-          .eq('user_email', user.email as string)
-          .maybeSingle()
-
-        if (!hqData) {
-          await supabase.auth.signOut()
-          router.push('/admin-login')
-          return
-        }
+        const { data: hqData } = await supabase.from('hq_users').select('role').eq('user_email', user.email || '').maybeSingle()
+        if (!hqData) { await supabase.auth.signOut(); router.push('/admin-login'); return }
 
         if (isMounted) {
-          await fetchSchoolsAndEscrow(isMounted)
+          await fetchSchoolsAndEscrow(isMounted, false)
         }
-
       } catch (err) {
-        console.error("Initialization Error:", err)
         toast.error("HQ Authentication failed.")
         if (isMounted) setLoading(false)
       } finally {
@@ -148,8 +132,7 @@ export default function AdminSchoolsPage() {
   }, [router, fetchSchoolsAndEscrow])
 
   const handleApproveSchool = (schoolId: string, schoolName: string, schoolEmail: string) => {
-    toast(
-      (t) => (
+    toast((t) => (
         <div className="flex flex-col gap-3">
           <p className="text-sm font-bold text-[#0a1128]">Approve {schoolName}?</p>
           <div className="flex gap-2 mt-1">
@@ -161,10 +144,9 @@ export default function AdminSchoolsPage() {
                 try {
                   await approveSchoolAction(schoolId, schoolName, schoolEmail)
                   toast.success("School approved successfully.", { id: loadingToast })
-                  fetchSchoolsAndEscrow(true)
+                  fetchSchoolsAndEscrow(true, true)
                 } catch (err: any) { 
                   toast.error(`Approval failed: ${err.message}`, { id: loadingToast }) 
-                  console.error(err)
                 } finally { setActionLoading(null) }
               }}
               className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors"
@@ -174,13 +156,11 @@ export default function AdminSchoolsPage() {
             <button onClick={() => toast.dismiss(t.id)} className="bg-gray-100 text-[#0a1128] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200">Cancel</button>
           </div>
         </div>
-      ), { duration: Infinity }
-    )
+      ), { duration: Infinity })
   }
 
   const handleRevoke = (schoolId: string, schoolName: string) => {
-    toast(
-      (t) => (
+    toast((t) => (
         <div className="flex flex-col gap-3">
           <p className="text-sm font-bold text-[#0a1128]">Suspend {schoolName}?</p>
           <div className="flex gap-2 mt-1">
@@ -192,7 +172,7 @@ export default function AdminSchoolsPage() {
                 try {
                   await suspendSchoolAction(schoolId)
                   toast.success("School suspended.", { id: loadingToast })
-                  fetchSchoolsAndEscrow(true)
+                  fetchSchoolsAndEscrow(true, true)
                 } catch (err: any) { 
                   toast.error(`Suspension failed: ${err.message}`, { id: loadingToast }) 
                 } finally { setActionLoading(null) }
@@ -204,14 +184,12 @@ export default function AdminSchoolsPage() {
             <button onClick={() => toast.dismiss(t.id)} className="bg-gray-100 text-[#0a1128] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200">Cancel</button>
           </div>
         </div>
-      ), { duration: Infinity }
-    )
+      ), { duration: Infinity })
   }
 
   const handleToggleTier = (schoolId: string, schoolName: string, currentTier: string) => {
     const newTier = currentTier === 'Tier 1' ? 'Tier 2' : 'Tier 1'
-    toast(
-      (t) => (
+    toast((t) => (
         <div className="flex flex-col gap-3">
           <p className="text-sm font-bold text-[#0a1128]">Upgrade {schoolName} to {newTier}?</p>
           <p className="text-xs text-gray-500">Ensure GSI mandates are signed.</p>
@@ -224,7 +202,7 @@ export default function AdminSchoolsPage() {
                 try {
                   await toggleSchoolTierAction(schoolId, newTier)
                   toast.success(`Upgraded to ${newTier}.`, { id: loadingToast })
-                  fetchSchoolsAndEscrow(true)
+                  fetchSchoolsAndEscrow(true, true)
                 } catch (err: any) { 
                   toast.error(`Tier update failed: ${err.message}`, { id: loadingToast }) 
                 } finally { setActionLoading(null) }
@@ -236,8 +214,7 @@ export default function AdminSchoolsPage() {
             <button onClick={() => toast.dismiss(t.id)} className="bg-gray-100 text-[#0a1128] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200">Cancel</button>
           </div>
         </div>
-      ), { duration: Infinity }
-    )
+      ), { duration: Infinity })
   }
 
   const handleDownloadCSV = () => {
@@ -271,25 +248,18 @@ export default function AdminSchoolsPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto animate-in fade-in pb-20 relative">
-      
-      {/* HEADER */}
       <div className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-[#0a1128] tracking-tight mb-1.5 flex items-center gap-2">
-            <Building2 className="w-6 h-6 text-blue-600" />
-            Network Admin
+            <Building2 className="w-6 h-6 text-blue-600" /> Network Admin
           </h1>
           <p className="text-gray-500 font-medium text-xs">Review applications and manage platform liquidity.</p>
         </div>
-        <button 
-          onClick={() => router.push('/admin/settings')}
-          className="text-xs font-bold text-gray-500 hover:text-[#0a1128] transition-colors bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-200 flex items-center gap-2 active:scale-95"
-        >
+        <button onClick={() => router.push('/admin/settings')} className="text-xs font-bold text-gray-500 hover:text-[#0a1128] transition-colors bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-200 flex items-center gap-2 active:scale-95">
           <Settings className="w-3.5 h-3.5" /> Global Settings
         </button>
       </div>
 
-      {/* STATS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-gradient-to-br from-[#0a1128] to-[#15234b] p-5 md:p-6 rounded-2xl shadow-xl shadow-blue-900/10 relative overflow-hidden group col-span-1 md:col-span-2">
           <div className="absolute top-0 right-0 -mr-12 -mt-12 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl transition-transform group-hover:scale-110 pointer-events-none"></div>
@@ -325,7 +295,6 @@ export default function AdminSchoolsPage() {
         </div>
       </div>
 
-      {/* DIRECTORY SECTION */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden relative">
         <div className="p-4 md:p-5 border-b border-gray-100 bg-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <h3 className="text-base font-bold text-[#0a1128]">School Directory</h3>
@@ -334,16 +303,11 @@ export default function AdminSchoolsPage() {
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search className="h-3.5 w-3.5 text-gray-400" />
               </div>
-              <input 
-                type="text" placeholder="Search school, email, or state..." 
-                value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              <input type="text" placeholder="Search school, email, or state..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-xs text-[#0a1128] transition-all shadow-sm font-medium"
               />
             </div>
-            <button 
-              onClick={handleDownloadCSV}
-              className="w-full sm:w-auto flex justify-center items-center gap-1.5 bg-white border border-gray-200 text-[#0a1128] px-4 py-2 rounded-xl text-xs font-bold hover:bg-gray-50 transition-colors shadow-sm active:scale-95"
-            >
+            <button onClick={handleDownloadCSV} className="w-full sm:w-auto flex justify-center items-center gap-1.5 bg-white border border-gray-200 text-[#0a1128] px-4 py-2 rounded-xl text-xs font-bold hover:bg-gray-50 transition-colors shadow-sm active:scale-95">
               <Download className="w-3.5 h-3.5 text-blue-600" /> Export CSV
             </button>
           </div>
@@ -352,9 +316,7 @@ export default function AdminSchoolsPage() {
         <div>
           {filteredSchools.length === 0 ? (
             <div className="p-12 text-center flex flex-col items-center justify-center">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-50 text-gray-400 mb-3">
-                <FileSearch className="w-6 h-6" />
-              </div>
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-50 text-gray-400 mb-3"><FileSearch className="w-6 h-6" /></div>
               <p className="text-[#0a1128] font-bold text-sm mb-0.5">No schools found.</p>
               <p className="text-xs text-gray-500 font-medium">Try adjusting your search criteria.</p>
             </div>
@@ -362,99 +324,53 @@ export default function AdminSchoolsPage() {
             <div className="divide-y divide-gray-50">
               {filteredSchools.map((school) => (
                 <div key={school.id} className={`flex flex-col lg:flex-row items-start lg:items-center justify-between p-5 hover:bg-gray-50/50 transition-colors gap-4 ${school.unclaimed_escrow > 0 ? 'bg-blue-50/20' : ''}`}>
-                  
                   <div className="flex-1 min-w-[200px]">
                     <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                      <h3 className="font-extrabold text-[#0a1128] text-sm tracking-tight flex items-center gap-1.5">
-                        {school.name}
-                      </h3>
-                      <span className="px-2 py-0.5 rounded text-blue-700 bg-blue-50 border border-blue-200 text-[8px] font-bold tracking-wider uppercase">
-                        {(school as any).tier || 'Tier 1'}
-                      </span>
+                      <h3 className="font-extrabold text-[#0a1128] text-sm tracking-tight flex items-center gap-1.5">{school.name}</h3>
+                      <span className="px-2 py-0.5 rounded text-blue-700 bg-blue-50 border border-blue-200 text-[8px] font-bold tracking-wider uppercase">{(school as any).tier || 'Tier 1'}</span>
                     </div>
                     <div className="flex items-center gap-2 text-[11px] font-medium text-gray-500">
-                      {school.state && (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3 text-gray-400" /> {school.state}
-                        </span>
-                      )}
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-gray-400" /> Joined {new Date(school.created_at).toLocaleDateString()}
-                      </span>
+                      {school.state && (<span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-gray-400" /> {school.state}</span>)}
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-gray-400" /> Joined {new Date(school.created_at).toLocaleDateString()}</span>
                     </div>
                   </div>
-
                   <div className="flex-1 min-w-[180px] space-y-1.5">
-                    <p className="text-xs text-[#0a1128] font-medium flex items-center gap-1.5">
-                      <Mail className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      <span className="truncate">{school.finance_email || school.email || 'No email'}</span>
-                    </p>
-                    <p className="text-[11px] text-gray-500 flex items-center gap-1.5 font-mono">
-                      <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      {school.contact_phone || 'N/A'}
-                    </p>
+                    <p className="text-xs text-[#0a1128] font-medium flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-gray-400 shrink-0" /><span className="truncate">{school.finance_email || school.email || 'No email'}</span></p>
+                    <p className="text-[11px] text-gray-500 flex items-center gap-1.5 font-mono"><Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />{school.contact_phone || 'N/A'}</p>
                   </div>
-
                   <div className="flex-1 min-w-[120px] w-full lg:w-auto border-t lg:border-t-0 border-gray-100 pt-3 lg:pt-0">
-                    <p className={`text-base font-black font-mono tracking-tight mb-0.5 ${school.unclaimed_escrow > 0 ? 'text-blue-600' : 'text-[#0a1128]'}`}>
-                      ₦{school.unclaimed_escrow.toLocaleString()}
-                    </p>
+                    <p className={`text-base font-black font-mono tracking-tight mb-0.5 ${school.unclaimed_escrow > 0 ? 'text-blue-600' : 'text-[#0a1128]'}`}>₦{school.unclaimed_escrow.toLocaleString()}</p>
                     {school.unclaimed_escrow > 0 ? (
-                      <div className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shrink-0"></span>
-                        <p className="text-[9px] font-bold text-blue-600 uppercase tracking-wider">Awaiting Claim</p>
-                      </div>
+                      <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shrink-0"></span><p className="text-[9px] font-bold text-blue-600 uppercase tracking-wider">Awaiting Claim</p></div>
                     ) : (
-                      <div className="flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-gray-400" />
-                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Settled</p>
-                      </div>
+                      <div className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-gray-400" /><p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Settled</p></div>
                     )}
                   </div>
-
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between lg:justify-end gap-3 flex-1 min-w-[240px] w-full lg:w-auto">
                     <span className={`px-2 py-1 rounded md text-[9px] font-bold uppercase tracking-wider border shrink-0 inline-flex items-center gap-1 ${
                       school.status === 'Pending Verification' || school.status === 'Pending' ? 'bg-orange-50 text-orange-700 border-orange-200' : 
                       school.status === 'Active' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
                     }`}>
-                      {school.status === 'Pending Verification' || school.status === 'Pending' ? <Clock className="w-2.5 h-2.5" /> : 
-                       school.status === 'Active' ? <CheckCircle2 className="w-2.5 h-2.5" /> : <AlertCircle className="w-2.5 h-2.5" />}
-                      {school.status}
+                      {school.status === 'Pending Verification' || school.status === 'Pending' ? <Clock className="w-2.5 h-2.5" /> : school.status === 'Active' ? <CheckCircle2 className="w-2.5 h-2.5" /> : <AlertCircle className="w-2.5 h-2.5" />} {school.status}
                     </span>
-
                     <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
                       {(school.status === 'Pending Verification' || school.status === 'Pending') && (
-                        <button 
-                          onClick={() => handleApproveSchool(school.id, school.name, school.finance_email || school.email)} 
-                          disabled={actionLoading === school.id} 
+                        <button onClick={() => handleApproveSchool(school.id, school.name, school.finance_email || school.email)} disabled={actionLoading === school.id} 
                           className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-blue-500 text-white px-4 py-2 rounded-xl text-[11px] font-bold hover:from-blue-700 hover:to-blue-600 transition-all shadow-md shadow-blue-500/20 disabled:shadow-none disabled:from-gray-300 disabled:to-gray-300 active:scale-95 flex items-center justify-center gap-1"
-                        >
-                          {actionLoading === school.id ? '...' : <><ShieldCheck className="w-3 h-3" /> Approve</>}
-                        </button>
+                        >{actionLoading === school.id ? '...' : <><ShieldCheck className="w-3 h-3" /> Approve</>}</button>
                       )}
-                      
                       {school.status === 'Active' && (
                         <>
-                          <button 
-                            onClick={() => handleToggleTier(school.id, school.name, (school as any).tier || 'Tier 1')} 
-                            disabled={actionLoading === school.id} 
+                          <button onClick={() => handleToggleTier(school.id, school.name, (school as any).tier || 'Tier 1')} disabled={actionLoading === school.id} 
                             className="flex-1 sm:flex-none px-3 py-2 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-xl text-[11px] font-bold transition-all shadow-sm disabled:opacity-50 active:scale-95 flex items-center justify-center gap-1"
-                          >
-                            {actionLoading === school.id ? '...' : ((school as any).tier === 'Tier 2' ? <><TrendingDown className="w-3 h-3" /> Tier 1</> : <><TrendingUp className="w-3 h-3" /> Tier 2</>)}
-                          </button>
-                          
-                          <button 
-                            onClick={() => handleRevoke(school.id, school.name)} 
-                            disabled={actionLoading === school.id} 
+                          >{actionLoading === school.id ? '...' : ((school as any).tier === 'Tier 2' ? <><TrendingDown className="w-3 h-3" /> Tier 1</> : <><TrendingUp className="w-3 h-3" /> Tier 2</>)}</button>
+                          <button onClick={() => handleRevoke(school.id, school.name)} disabled={actionLoading === school.id} 
                             className="flex-1 sm:flex-none px-3 py-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-xl text-[11px] font-bold transition-all shadow-sm disabled:opacity-50 active:scale-95 flex items-center justify-center gap-1"
-                          >
-                            {actionLoading === school.id ? '...' : <><Ban className="w-3 h-3" /> Suspend</>}
-                          </button>
+                          >{actionLoading === school.id ? '...' : <><Ban className="w-3 h-3" /> Suspend</>}</button>
                         </>
                       )}
                     </div>
                   </div>
-                  
                 </div>
               ))}
             </div>

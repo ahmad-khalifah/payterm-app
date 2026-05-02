@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '../../../lib/supabase'
 import toast from 'react-hot-toast'
-import { useRealtimeSync } from '@/lib/useRealtimeSync'
+import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
 import { Settings, UserPlus, FileText, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react'
 
 import DummyPaystack from './components/DummyPaystack'
@@ -41,6 +41,7 @@ export default function ParentDashboard() {
     studentClass: string; planId: string; studentId: string; isMidTerm: boolean;
   } | null>(null)
 
+  // 1. Pure Fetch Function
   const fetchDashboardData = useCallback(async () => {
     try {
       // STRICT PROTOCOL: Only use getUser() to validate secure HTTP cookies.
@@ -107,13 +108,16 @@ export default function ParentDashboard() {
     }
   }, [router])
 
+  // 2. THE HOOK GOES HERE: At the top level!
+  useRealtimeSync(() => fetchDashboardData())
+
+  // 3. Normal Initialization Check
   useEffect(() => {
     fetchDashboardData()
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
       if (event === 'SIGNED_OUT') router.push('/parent-login')
     })
     return () => authListener.subscription.unsubscribe()
-    useRealtimeSync(() => fetchDashboardData())
   }, [fetchDashboardData, router])
 
   const handleShowBreakdown = (plan: any, child: any) => {
@@ -148,7 +152,10 @@ export default function ParentDashboard() {
       toast.success(`Payment confirmed! Receipt No: ${reference}`) 
       setPaystackConfig(null)
       fetchDashboardData() 
-      useRealtimeSync(() => fetchDashboardData())
+      
+      // We don't need a useRealtimeSync here. 
+      // 1. We just called fetchDashboardData() above manually.
+      // 2. The global listener (step 2) will catch any further DB updates anyway.
     } catch (err) {
       console.error("Update error:", err)
       toast.error("Payment recorded, but there was an issue updating your dashboard.")
@@ -319,7 +326,7 @@ export default function ParentDashboard() {
                 onToggleHistory={(id: string) => setExpandedHistoryId(prev => prev === id ? null : id)}
                 onPay={handleShowBreakdown} 
                 onRenew={setRenewConfig}
-                onViewReceipt={setActiveReceipt}
+                viewReceipt={setActiveReceipt} // Make sure this prop name matches your StudentCard component!
               />
             ))
           )}

@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
+import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
 
-// --- NEW LUCIDE ICONS ---
 import { 
   ReceiptText, AlertCircle, Search, Filter, 
   ChevronDown, User, Phone, Mail, GraduationCap, 
@@ -21,10 +21,10 @@ export default function AdminCollectionsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState('All')
 
-  // BULLETPROOF FETCH: Bypassing complex Supabase Joins to prevent silent failures
-  const fetchCollections = useCallback(async (isMounted: boolean = true) => {
+  // 1. BULLETPROOF FETCH: No hooks inside this function
+  const fetchCollections = useCallback(async (isMounted: boolean = true, isSilent: boolean = false) => {
     try {
-      if (isMounted) setLoading(true)
+      if (isMounted && !isSilent) setLoading(true)
 
       const { data: plansData, error: planError } = await supabase
         .from('active_plans')
@@ -121,12 +121,16 @@ export default function AdminCollectionsPage() {
       
     } catch (err: any) {
       console.error("Collections Fetch Error:", err)
-      if (isMounted && err.message) toast.error("Database Error: " + err.message)
+      if (isMounted && err.message && !isSilent) toast.error("Database Error: " + err.message)
     } finally {
-      if (isMounted) setLoading(false) 
+      if (isMounted && !isSilent) setLoading(false) 
     }
   }, [])
 
+  // 2. THE CUSTOM HOOK: Must be at the top level
+  useRealtimeSync(() => fetchCollections(true, true))
+
+  // 3. Normal Initial Load & Auth check
   useEffect(() => {
     let isMounted = true
 
@@ -153,7 +157,7 @@ export default function AdminCollectionsPage() {
         }
 
         if (isMounted) {
-          await fetchCollections(isMounted)
+          await fetchCollections(isMounted, false)
         }
 
       } catch (err) {

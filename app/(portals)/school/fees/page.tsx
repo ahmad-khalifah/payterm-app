@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
-import { useRealtimeSync } from '@/lib/useRealtimeSync'
+import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
 import { 
   Landmark, ChevronDown, Calendar, Lock, 
   Receipt, GraduationCap, CheckCircle2, FileQuestion, Library
@@ -59,7 +59,53 @@ export default function FeesManagementPage() {
     }
   }, [])
 
-  // --- 2. INITIALIZE PAGE & SECURITY CHECK ---
+  // --- 2. FETCH SPECIFIC CLASS FEES FUNCTION ---
+  const fetchClassFees = useCallback(async (isMounted: boolean = true, isSilent: boolean = false) => {
+    if (!targetSchool) return
+    if (isMounted && !isSilent) setIsLoadingFees(true)
+    try {
+      const { data, error } = await supabase
+        .from('class_fees')
+        .select('*')
+        .eq('school_name', targetSchool)
+        .eq('class_name', selectedClass)
+        .eq('academic_session', selectedSession)
+        .eq('term', selectedTerm)
+        .single()
+
+      if (isMounted) {
+        if (data) {
+          setFees({
+            tuition: Number(data.tuition) || 0,
+            books: Number(data.books) || 0,
+            uniform: Number(data.uniform) || 0,
+            transport: Number(data.transport) || 0,
+          })
+          setMidTermDate(data.mid_term_date || '')
+        } else {
+          setFees({ tuition: 0, books: 0, uniform: 0, transport: 0 })
+          setMidTermDate('')
+        }
+      }
+    } catch (err) {
+      if (isMounted) {
+        setFees({ tuition: 0, books: 0, uniform: 0, transport: 0 })
+        setMidTermDate('')
+      }
+    } finally {
+      if (isMounted && !isSilent) setIsLoadingFees(false)
+    }
+  }, [targetSchool, selectedClass, selectedSession, selectedTerm])
+
+  // --- 3. THE HOOK GOES HERE: At the top level! ---
+  useRealtimeSync(() => {
+    if (targetSchool) {
+      fetchExistingFees(targetSchool)
+      fetchClassFees(true, true)
+    }
+  })
+
+  // --- 4. INITIALIZE PAGE & SECURITY CHECK ---
   useEffect(() => {
     let isMounted = true
 
@@ -110,54 +156,14 @@ export default function FeesManagementPage() {
     }
   }, [router, fetchExistingFees])
 
-  // --- 3. FETCH SPECIFIC CLASS FEES FOR THE FORM ---
+  // --- 5. INITIAL LOAD FOR SPECIFIC CLASS FEES ---
   useEffect(() => {
-    if (!targetSchool) return
     let isMounted = true
-
-    const fetchClassFees = async () => {
-      setIsLoadingFees(true)
-      try {
-        const { data, error } = await supabase
-          .from('class_fees')
-          .select('*')
-          .eq('school_name', targetSchool)
-          .eq('class_name', selectedClass)
-          .eq('academic_session', selectedSession)
-          .eq('term', selectedTerm)
-          .single()
-
-        if (isMounted) {
-          if (data) {
-            setFees({
-              tuition: Number(data.tuition) || 0,
-              books: Number(data.books) || 0,
-              uniform: Number(data.uniform) || 0,
-              transport: Number(data.transport) || 0,
-            })
-            setMidTermDate(data.mid_term_date || '')
-          } else {
-            setFees({ tuition: 0, books: 0, uniform: 0, transport: 0 })
-            setMidTermDate('')
-          }
-        }
-      } catch (err) {
-        if (isMounted) {
-          setFees({ tuition: 0, books: 0, uniform: 0, transport: 0 })
-          setMidTermDate('')
-        }
-      } finally {
-        if (isMounted) setIsLoadingFees(false)
-      }
-    }
-
-    fetchClassFees()
-    useRealtimeSync(() => fetchClassFees())
-    
+    fetchClassFees(isMounted, false)
     return () => { isMounted = false }
-  }, [selectedClass, selectedSession, selectedTerm, targetSchool])
+  }, [fetchClassFees])
 
-  // --- 4. FORM HANDLERS & PRICING ENGINE ---
+  // --- 6. FORM HANDLERS & PRICING ENGINE ---
   const handleFeeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFees(prev => ({ ...prev, [name]: Number(value) || 0 }))
@@ -198,9 +204,8 @@ export default function FeesManagementPage() {
       if (error) throw error
       toast.success(`${selectedClass} fees locked successfully.`, { id: loadingToast })
       
-      // Refresh the ledger table automatically after saving
+      // Manually refresh the ledger table after a successful save
       fetchExistingFees(targetSchool)
-      useRealtimeSync(() => fetchExistingFees(targetSchool))
     } catch (err: any) {
       toast.error(`Error saving fees: ${err.message}`, { id: loadingToast })
     } finally {

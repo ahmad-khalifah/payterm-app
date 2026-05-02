@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import { LifeBuoy, ChevronDown, FileText, Mail, Send, Bot, User, MessageCircle } from 'lucide-react'
-import { useRealtimeSync } from '@/lib/useRealtimeSync'
+
+// Note: useRealtimeSync is NOT needed here. This is a local mock chat UI 
+// without a database backend for the messages yet. Realtime hooks are for database syncing.
 
 export default function Support() {
   const [activeFaq, setActiveFaq] = useState<number | null>(null)
@@ -22,7 +24,7 @@ export default function Support() {
     if (!chatMessage.trim()) return
 
     const newMsg = { sender: 'user', text: chatMessage, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }
-    setChatHistory([...chatHistory, newMsg])
+    setChatHistory(prev => [...prev, newMsg])
     setChatMessage('')
 
     // MVP PITCH BYPASS: Simulate an automated reply
@@ -33,14 +35,6 @@ export default function Support() {
         time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) 
       }])
     }, 1000)
-    useRealtimeSync(() => setChatHistory([...chatHistory, newMsg]))
-    useRealtimeSync(() => setTimeout(() => {
-      setChatHistory(prev => [...prev, { 
-        sender: 'agent', 
-        text: 'I understand you need help with that. Let me connect you to a human billing specialist. You are currently #1 in the queue.', 
-        time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) 
-      }])
-    }, 1000))
   }
 
   return (

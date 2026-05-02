@@ -12,7 +12,8 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<any[]>([])
   const [userId, setUserId] = useState<string | null>(null)
 
-  const fetchNotifications = useCallback(async (uid?: string) => {
+  // 1. Pure Fetch Function
+  const fetchNotifications = useCallback(async (uid?: string, isMounted: boolean = true) => {
     try {
       const { data, error } = await supabase
         .from('notifications')
@@ -21,19 +22,24 @@ export default function NotificationsPage() {
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      if (data) setNotifications(data)
+      if (data && isMounted) setNotifications(data)
     } catch (err: any) {
       console.error("Fetch error:", err.message)
-      toast.error("Failed to sync notifications.")
+      if (isMounted) toast.error("Failed to sync notifications.")
     } finally {
-      setLoading(false)
+      if (isMounted) setLoading(false)
     }
-    fetchNotifications()
-    useRealtimeSync(() => fetchNotifications())
   }, [])
 
+  // 2. THE HOOK GOES HERE: At the top level!
+  useRealtimeSync(() => {
+    if (userId) fetchNotifications(userId, true)
+  })
+
+  // 3. Normal Component Initialization
   useEffect(() => {
     let channel: any;
+    let isMounted = true;
 
     const initialize = async () => {
       try {
@@ -44,38 +50,41 @@ export default function NotificationsPage() {
           return // Handled by layout or middleware routing
         }
         
-        setUserId(user.id)
-        await fetchNotifications()
+        if (isMounted) {
+          setUserId(user.id)
+          await fetchNotifications(user.id, isMounted)
 
-        // Set up Realtime listener
-        channel = supabase
-          .channel(`notifications-${user.id}`)
-          .on(
-            'postgres_changes',
-            { 
-              event: 'INSERT', 
-              schema: 'public', 
-              table: 'notifications',
-              filter: `parent_id=eq.${user.id}` 
-            },
-            () => {
-              fetchNotifications() 
-            }
-          )
-          .subscribe()
+          // Set up Realtime listener specifically for notifications
+          channel = supabase
+            .channel(`notifications-${user.id}`)
+            .on(
+              'postgres_changes',
+              { 
+                event: 'INSERT', 
+                schema: 'public', 
+                table: 'notifications',
+                filter: `parent_id=eq.${user.id}` 
+              },
+              () => {
+                if (isMounted) fetchNotifications(user.id, isMounted) 
+              }
+            )
+            .subscribe()
+        }
       } catch (err) {
         console.error("Initialization Error:", err)
       } finally {
-        setIsInitializing(false)
+        if (isMounted) setIsInitializing(false)
       }
     }
 
     initialize()
 
     return () => {
+      isMounted = false;
       if (channel) supabase.removeChannel(channel)
     }
-  }, [])
+  }, [fetchNotifications])
 
   const markAsRead = async (id: string) => {
     try {
