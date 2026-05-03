@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { supabase } from '../../../lib/supabase'
 import toast from 'react-hot-toast'
 import { useRealtimeSync } from '@/lib/useRealtimeSync'
-import { UserPlus, FileText, ChevronRight, AlertCircle, Wallet } from 'lucide-react'
+import { UserPlus, FileText, ChevronRight, AlertCircle, Wallet, CheckCircle2, Bell } from 'lucide-react'
 
 import DummyPaystack from './components/DummyPaystack'
 import StudentCard from './components/StudentCard'
@@ -107,7 +107,6 @@ export default function ParentDashboard() {
   }, [router])
 
   // 2. THE HOOK GOES HERE: At the top level! 
-  // (Passed as a direct reference to prevent infinite loops)
   useRealtimeSync(fetchDashboardData)
 
   // 3. Normal Initialization Check
@@ -265,61 +264,78 @@ export default function ParentDashboard() {
         />
       )}
 
-      {/* --- 1. STICKY PROFILE HEADER (ONLY THIS STAYS AT THE TOP) --- */}
-      <header className="sticky top-0 z-40 bg-[#f8fafc]/95 backdrop-blur-md pt-4 sm:pt-6 lg:pt-8 pb-4 border-b border-gray-200/50 px-4 sm:px-6 lg:px-10">
-        <div className="max-w-6xl mx-auto flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-50 text-blue-600 flex items-center justify-center text-sm font-extrabold shadow-inner border border-blue-200 shrink-0">
-            {parentName ? parentName.charAt(0).toUpperCase() : 'P'}
+      {/* --- STICKY PROFILE HEADER (ONLY THIS STAYS AT THE TOP) --- */}
+      <header className="sticky top-0 z-40 bg-[#f8fafc]/95 backdrop-blur-md pt-4 sm:pt-6 lg:pt-8 pb-4 border-b border-gray-200/50 px-4 sm:px-6 lg:px-10 transition-all">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-sm font-extrabold border border-blue-100 shrink-0">
+              {parentName ? parentName.charAt(0).toUpperCase() : 'P'}
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] font-medium text-gray-400">Welcome back</span>
+              <h1 className="text-sm font-extrabold text-[#0a1128] leading-none mt-0.5">
+                {parentName ? parentName.split(' ')[0] : 'Parent'}
+              </h1>
+            </div>
           </div>
-          <h1 className="text-base sm:text-lg font-extrabold text-[#0a1128] uppercase tracking-wide">
-            Hi, {parentName ? parentName.split(' ')[0] : 'PARENT'}
-          </h1>
+          <button className="relative w-9 h-9 rounded-xl border border-gray-200 bg-white flex items-center justify-center text-gray-600 hover:bg-gray-50 active:scale-95 transition-all shadow-sm">
+            <Bell className="w-4 h-4" />
+            <span className="absolute top-2 right-2.5 w-1.5 h-1.5 bg-red-500 rounded-full border border-white"></span>
+          </button>
         </div>
       </header>
 
-      {/* --- 2. SCROLLING CONTENT (WALLET BOX + STUDENTS) --- */}
+      {/* --- SCROLLING CONTENT --- */}
       <div className="px-4 sm:px-6 lg:px-10 pt-6">
-        
-        {/* Wallet Style Card (Exactly as requested) */}
-        <div className="bg-[#0a1128] text-white p-5 rounded-3xl shadow-lg shadow-blue-900/10 mb-8">
-          
-          {/* Top Row */}
-          <div className="flex justify-between items-center mb-3">
-            <div className="flex items-center gap-1.5 text-blue-100/80">
-              <Wallet className="w-4 h-4" />
-              <span className="text-xs font-medium">Outstanding Balance</span>
-            </div>
-            <div className="text-xs font-medium text-blue-100/80 flex items-center gap-1">
-              Active Plans: <span className="font-bold text-white">{enrolledCount}</span>
-            </div>
-          </div>
 
-          {/* Bottom Row */}
-          <div className="flex justify-between items-center">
-            <div className="text-3xl font-black tracking-tight">
+        {/* THE COMPACT WHITE WIDGET CARD (Now Scrolls Away) */}
+        <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-5 sm:p-6 mb-8 transition-all">
+          
+          {/* Top Row: Outstanding Balance */}
+          <div className="mb-5">
+            <p className="text-[11px] font-medium text-gray-500 mb-1">Outstanding Balance</p>
+            <div className="text-3xl sm:text-4xl font-black text-[#0a1128] tracking-tight">
               ₦{totalOutstanding.toLocaleString()}
             </div>
+          </div>
+
+          {/* Bottom Row: The Split Brand Pill */}
+          <div className="bg-[#0a1128] rounded-2xl flex items-stretch shadow-md shadow-[#0a1128]/10 overflow-hidden">
+            
+            {/* Left Half: Active Plans */}
+            <div className="flex-1 py-3 px-4 flex flex-col items-center justify-center border-r border-white/10">
+              <span className="text-[10px] text-blue-200/70 mb-0.5">Active Plans</span>
+              <span className="text-sm font-bold text-white">{enrolledCount}</span>
+            </div>
+            
+            {/* Right Half: Add Child */}
             <Link 
               href="/parent/add-student" 
-              className="bg-white text-[#0a1128] px-4 py-2.5 rounded-full text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-transform shadow-sm hover:bg-gray-50"
+              className="flex-1 py-3 px-4 flex flex-col items-center justify-center hover:bg-white/5 active:bg-white/10 transition-colors cursor-pointer"
             >
-              <span className="font-bold text-lg leading-none mb-0.5">+</span> Add Child
+              <span className="text-[10px] text-blue-200/70 mb-0.5">New Student</span>
+              <span className="text-sm font-bold text-white flex items-center gap-1.5">
+                <UserPlus className="w-3.5 h-3.5" />
+                Add Child
+              </span>
             </Link>
+
           </div>
+
         </div>
 
-        {/* STUDENTS GRID (Heading Removed) */}
+        {/* STUDENTS GRID */}
         <div className={childrenData.length === 0 ? "" : "grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-6"}>
           {childrenData.length === 0 ? (
-            <div className="bg-gradient-to-b from-white to-gray-50 rounded-3xl border border-dashed border-gray-300 p-12 text-center flex flex-col items-center justify-center shadow-sm relative overflow-hidden">
+            <div className="bg-white rounded-3xl border border-dashed border-gray-300 p-12 text-center flex flex-col items-center justify-center shadow-sm relative overflow-hidden">
               <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] mix-blend-overlay"></div>
-              <div className="w-20 h-20 bg-white shadow-xl shadow-blue-900/5 rounded-full flex items-center justify-center mb-6 relative z-10">
-                <AlertCircle className="w-10 h-10 text-blue-600" />
+              <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6 border border-gray-100">
+                <AlertCircle className="w-10 h-10 text-gray-400" />
               </div>
               <h3 className="text-xl font-extrabold text-[#0a1128] mb-2 relative z-10">No Students Linked</h3>
               <p className="text-gray-500 text-sm font-medium mb-8 max-w-sm mx-auto relative z-10 leading-relaxed">Connect your child to a verified partner school to instantly generate your flexible payment plan.</p>
               
-              <Link href="/parent/add-student" className="group relative w-full sm:w-auto flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-full font-bold text-sm transition-all shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40 active:scale-95 z-10">
+              <Link href="/parent/add-student" className="group relative w-full sm:w-auto flex items-center justify-center gap-3 px-8 py-4 bg-[#0a1128] text-white rounded-full font-bold text-sm transition-all shadow-lg shadow-blue-900/20 hover:shadow-blue-900/40 active:scale-95 z-10">
                 <span className="tracking-wide">Register Your Child</span>
                 <ChevronRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
               </Link>
