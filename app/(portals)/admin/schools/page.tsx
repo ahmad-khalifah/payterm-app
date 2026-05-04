@@ -134,7 +134,7 @@ export default function AdminSchoolsPage() {
   const handleApproveSchool = (schoolId: string, schoolName: string, schoolEmail: string) => {
     toast((t) => (
         <div className="flex flex-col gap-3">
-          <p className="text-sm font-bold text-[#0a1128]">Approve {schoolName}?</p>
+          <div className="text-sm font-bold text-[#0a1128]">Approve {schoolName}?</div>
           <div className="flex gap-2 mt-1">
             <button 
               onClick={async () => {
