@@ -302,21 +302,21 @@ export default function ParentDashboard() {
           {/* Bottom Row: The Split Brand Pill */}
           <div className="bg-[#0a1128] rounded-2xl flex items-stretch shadow-md shadow-[#0a1128]/10 overflow-hidden">
             
-            {/* Left Half: Active Plans */}
+            {/* Left Half: Active Plans (Stat Display) */}
             <div className="flex-1 py-3 px-4 flex flex-col items-center justify-center border-r border-white/10">
               <span className="text-[10px] text-blue-200/70 mb-0.5">Active Plans</span>
               <span className="text-sm font-bold text-white">{enrolledCount}</span>
             </div>
             
-            {/* Right Half: Add Child */}
+            {/* Right Half: Add Child (Navigation Button) */}
             <Link 
               href="/parent/add-student" 
-              className="flex-1 py-3 px-4 flex flex-col items-center justify-center hover:bg-white/5 active:bg-white/10 transition-colors cursor-pointer"
+              className="flex-1 bg-blue-600 hover:bg-blue-500 transition-colors flex items-center justify-center group cursor-pointer"
             >
-              <span className="text-[10px] text-blue-200/70 mb-0.5">New Student</span>
-              <span className="text-sm font-bold text-white flex items-center gap-1.5">
-                <UserPlus className="w-3.5 h-3.5" />
+              <span className="text-sm font-bold text-white flex items-center gap-2">
+                <UserPlus className="w-4 h-4" />
                 Add Child
+                <ChevronRight className="w-4 h-4 text-blue-200 group-hover:translate-x-1 transition-transform" />
               </span>
             </Link>
 
