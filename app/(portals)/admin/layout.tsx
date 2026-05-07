@@ -45,7 +45,7 @@ export default function AdminLayout({
       {/* MOBILE HEADER */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-[#0a1128] text-white flex items-center justify-between px-6 z-50 shadow-md border-b border-white/5 print:hidden">
         <h2 className="text-xl font-extrabold tracking-tight flex items-center gap-2">
-          <span className="text-white">PayTerm</span> <span className="text-blue-500">HQ</span>
+          <span className="text-white">PayTerm</span> <span className="text-blue-500">Admin</span>
         </h2>
         <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 -mr-2 text-slate-400 hover:text-white transition-colors active:scale-95">
           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -66,7 +66,7 @@ export default function AdminLayout({
         {/* LOGO */}
         <div className="p-6 hidden md:block border-b border-white/5">
           <h2 className="text-2xl font-extrabold tracking-tight flex items-center gap-2">
-            <span className="text-white">PayTerm</span> <span className="text-blue-500">HQ</span>
+            <span className="text-white">PayTerm</span> <span className="text-blue-500">Admin</span>
           </h2>
           <div className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mt-1">
             Master Control

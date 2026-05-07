@@ -68,7 +68,7 @@ export default function ParentLogin() {
     }
   }
 
-  if (isInitializing) return <div className="min-h-screen bg-gray-50 flex items-center justify-center font-bold text-[#0a1128] uppercase tracking-widest animate-pulse">Checking Session...</div>
+  if (isInitializing) return <div className="min-h-screen bg-gray-50 flex items-center justify-center font-bold text-[#0a1128] uppercase tracking-widest animate-pulse">Loading...</div>
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center p-4 sm:p-6 animate-in fade-in font-sans relative overflow-hidden">
@@ -119,7 +119,7 @@ export default function ParentLogin() {
             <div className="pt-2">
               <button type="submit" disabled={loading} className="w-full flex justify-center items-center gap-2 py-4 px-4 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 shadow-lg shadow-blue-500/20 disabled:shadow-none disabled:from-blue-300 disabled:to-blue-300 transition-all active:scale-[0.98] group">
                 {loading ? 'Loading...' : 'Sign In'}
-                {!loading && <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />}
+               
               </button>
             </div>
           </form>

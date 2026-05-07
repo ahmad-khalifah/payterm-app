@@ -4,22 +4,26 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
-import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
+import { useRealtimeSync } from '@/lib/useRealtimeSync' 
 import { 
   BarChart3, Download, Printer, FileSearch, User, 
-  Phone, GraduationCap, CheckCircle2, AlertCircle, Clock 
+  Phone, GraduationCap, CheckCircle2, AlertCircle, Clock,
+  Search, Filter
 } from 'lucide-react'
 
 export default function ReportsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
-  const [isInitializing, setIsInitializing] = useState(true) // Session lock
+  const [isInitializing, setIsInitializing] = useState(true) 
   const [students, setStudents] = useState<any[]>([])
   
   const [targetSchool, setTargetSchool] = useState<string | null>(null)
   const [schoolId, setSchoolId] = useState<string | null>(null) 
 
-  // 1. Pure Fetch Function
+  // NEW: Filter States
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterStatus, setFilterStatus] = useState('All')
+
   const fetchReportData = useCallback(async (idToFetch: string, isMounted: boolean = true) => {
     try {
       if (isMounted) setLoading(true)
@@ -42,28 +46,29 @@ export default function ReportsPage() {
     }
   }, [])
 
-  // 2. THE HOOK GOES HERE: At the top level!
   useRealtimeSync(() => {
     if (schoolId) fetchReportData(schoolId, true)
   })
 
-  // 3. Normal Initialization
   useEffect(() => {
     let isMounted = true
 
     const initializePage = async () => {
       try {
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        // DEMO-SAFE FIX: Instant local storage check
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
-        if (authError || !user) {
+        if (sessionError || !session) {
           router.push('/school-login')
           return
         }
 
+        const activeUser = session.user
+
         const { data: schoolProfile, error: profileError } = await supabase
           .from('partner_schools')
           .select('name')
-          .eq('id', user.id)
+          .eq('id', activeUser.id)
           .single()
 
         if (profileError || !schoolProfile) {
@@ -73,8 +78,8 @@ export default function ReportsPage() {
 
         if (isMounted) {
           setTargetSchool(schoolProfile.name)
-          setSchoolId(user.id) 
-          await fetchReportData(user.id, isMounted)
+          setSchoolId(activeUser.id) 
+          await fetchReportData(activeUser.id, isMounted)
         }
       } catch (err) {
         console.error("Auth Error:", err)
@@ -96,26 +101,40 @@ export default function ReportsPage() {
     }
   }, [router, fetchReportData])
 
+  // NEW: Filter Logic
+  const filteredStudents = students.filter(s => {
+    const plan = s.active_plans?.[0]
+    const parentData = Array.isArray(s.parents) ? s.parents[0] : s.parents
+    
+    const searchString = `${s.full_name} ${s.student_class} ${parentData?.full_name || ''} ${parentData?.phone || ''}`.toLowerCase()
+    const matchesSearch = searchString.includes(searchQuery.toLowerCase())
+    
+    const planStatus = plan?.status || 'No Plan'
+    const matchesStatus = filterStatus === 'All' || planStatus === filterStatus
+
+    return matchesSearch && matchesStatus
+  })
 
   const downloadCSV = () => {
     try {
       const headers = ["Student Name", "Class", "Parent Name", "Parent Phone", "Total Fee", "Amount Paid", "Outstanding 40% Balance", "Status", "Due Date"]
       
-      const rows = students.map(s => {
+      // FIX: Export only the filtered list
+      const rows = filteredStudents.map(s => {
         const plan = s.active_plans[0]
         const parentData = Array.isArray(s.parents) ? s.parents[0] : s.parents
         const outstanding = plan ? (Number(plan.total_fee) - Number(plan.amount_paid)) : 0
 
         return [
-          s.full_name,
-          s.student_class,
-          parentData?.full_name || 'N/A',
-          parentData?.phone || 'N/A',
+          `"${s.full_name}"`,
+          `"${s.student_class}"`,
+          `"${parentData?.full_name || 'N/A'}"`,
+          `"${parentData?.phone || 'N/A'}"`,
           plan?.total_fee || 0,
           plan?.amount_paid || 0,
           outstanding,
-          plan?.status || 'N/A',
-          plan?.next_payment_date || 'N/A'
+          `"${plan?.status || 'N/A'}"`,
+          `"${plan?.next_payment_date || 'N/A'}"`
         ]
       })
 
@@ -161,7 +180,7 @@ export default function ReportsPage() {
             className="bg-white border border-gray-200 text-[#0a1128] px-6 py-3 rounded-xl text-sm font-bold hover:bg-gray-50 hover:border-gray-300 flex items-center justify-center gap-2 transition-all shadow-sm active:scale-95"
           >
             <Download className="w-4 h-4 text-blue-600" />
-            Export Full CSV
+            Export CSV
           </button>
           <button 
             onClick={() => window.print()}
@@ -174,10 +193,44 @@ export default function ReportsPage() {
       </div>
 
       {/* REPORT TABLE */}
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden print:border-none print:shadow-none relative">
-        <div className="p-6 border-b border-gray-100 bg-white print:border-b-2 print:border-gray-900">
-          <h3 className="text-lg font-bold text-[#0a1128] print:text-xl">Mid-Term Balance Monitor</h3>
-          <p className="text-xs text-gray-500 mt-1 font-medium hidden print:block">Generated on: {new Date().toLocaleDateString()}</p>
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden print:border-none print:shadow-none relative">
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-5 md:px-6 md:py-4 border-b border-gray-200 print:border-b-2 print:border-gray-900 print:mb-4">
+          <div>
+            <h3 className="text-base font-bold text-[#0a1128] print:text-xl">Mid-Term Balance Monitor</h3>
+            <p className="text-xs text-gray-500 mt-1 font-medium hidden print:block">Generated on: {new Date().toLocaleDateString()}</p>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row w-full xl:w-auto items-center gap-3 print:hidden">
+            <div className="relative w-full sm:w-64">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-gray-400" />
+              </div>
+              <input 
+                type="text" 
+                placeholder="Search students or parents..." 
+                value={searchQuery} 
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-gray-400 focus:bg-white text-xs text-gray-900 transition-all"
+              />
+            </div>
+            
+            <div className="relative w-full sm:w-auto">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Filter className="h-4 w-4 text-gray-400" />
+              </div>
+              <select 
+                value={filterStatus} 
+                onChange={e => setFilterStatus(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-gray-400 focus:bg-white text-xs font-medium text-gray-900 transition-all appearance-none cursor-pointer"
+              >
+                <option value="All">All Statuses</option>
+                <option value="Active">Active</option>
+                <option value="Completed">Completed</option>
+                <option value="Late">Late</option>
+                <option value="Default">Default</option>
+              </select>
+            </div>
+          </div>
         </div>
         
         <div className="overflow-x-auto">
@@ -188,6 +241,14 @@ export default function ReportsPage() {
               </div>
               <p className="text-[#0a1128] font-bold text-lg mb-1">No active student plans found.</p>
               <p className="text-sm text-gray-500 font-medium">When parents enroll their children, their payment data will appear here.</p>
+            </div>
+          ) : filteredStudents.length === 0 ? (
+            <div className="p-16 text-center flex flex-col items-center justify-center h-full">
+              <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 mb-4">
+                <Search className="w-8 h-8" />
+              </div>
+              <p className="text-[#0a1128] font-bold text-lg mb-1">No matching records.</p>
+              <p className="text-sm text-gray-500 font-medium">Adjust your search or filter to find what you're looking for.</p>
             </div>
           ) : (
             <table className="w-full text-left text-sm border-collapse whitespace-nowrap">
@@ -201,7 +262,7 @@ export default function ReportsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 print:divide-gray-300">
-                {students.map((student, idx) => {
+                {filteredStudents.map((student, idx) => {
                   const plan = student.active_plans[0]
                   const parentData = Array.isArray(student.parents) ? student.parents[0] : student.parents
                   const isLate = plan?.status === 'Late' || plan?.status === 'Default'
@@ -232,10 +293,11 @@ export default function ReportsPage() {
                       <td className="p-5 align-top">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border ${
                           plan?.status === 'Active' ? 'bg-blue-50 text-blue-700 border-blue-200 print:border-none print:p-0 print:bg-transparent print:text-black' : 
+                          plan?.status === 'Completed' ? 'bg-green-50 text-green-700 border-green-200 print:border-none print:p-0 print:bg-transparent print:text-black' : 
                           isLate ? 'bg-red-50 text-red-700 border-red-200 print:border-none print:p-0 print:bg-transparent print:text-black' :
                           'bg-gray-50 text-gray-700 border-gray-200 print:border-none print:p-0 print:bg-transparent print:text-black'
                         }`}>
-                          {plan?.status === 'Active' && <CheckCircle2 className="w-3 h-3" />}
+                          {(plan?.status === 'Active' || plan?.status === 'Completed') && <CheckCircle2 className="w-3 h-3" />}
                           {isLate && <AlertCircle className="w-3 h-3" />}
                           {!plan?.status && <Clock className="w-3 h-3" />}
                           {plan?.status || 'No Plan'}
@@ -243,7 +305,7 @@ export default function ReportsPage() {
                       </td>
                       
                       <td className="p-5 text-xs font-bold text-orange-600 align-top">
-                        {plan?.next_payment_date ? new Date(plan.next_payment_date).toLocaleDateString('en-GB') : 'N/A'}
+                        {plan?.status === 'Completed' ? '-' : (plan?.next_payment_date ? new Date(plan.next_payment_date).toLocaleDateString('en-GB') : 'N/A')}
                       </td>
                       
                       <td className="p-5 text-right font-mono font-black text-[#0a1128] text-base tracking-tight align-top print:text-black">

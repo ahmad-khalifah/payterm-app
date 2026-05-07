@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Building2, GraduationCap, Calendar, ChevronDown, ChevronUp, CheckCircle2, RotateCw, Wallet, ReceiptText, AlertCircle, Clock } from 'lucide-react'
+import { Building2, GraduationCap, Calendar, ChevronDown, ChevronUp, CheckCircle2, RotateCw, Wallet, ReceiptText, AlertCircle, PieChart } from 'lucide-react'
 
 export default function StudentCard({ child, expandedHistoryId, onToggleHistory, onPay, onRenew, onViewReceipt }: any) {
   const plan = child.active_plans?.[0]
@@ -94,6 +94,11 @@ export default function StudentCard({ child, expandedHistoryId, onToggleHistory,
           <div className="flex items-center gap-1 bg-gray-50 px-2.5 py-1 rounded-md border border-gray-100 text-[10px] sm:text-xs font-medium text-gray-600">
             <GraduationCap className="w-3 h-3 text-gray-400" />
             {child.student_class}
+          </div>
+          {/* NEW: Plan Type Badge */}
+          <div className="flex items-center gap-1 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-100 text-[10px] sm:text-xs font-bold text-purple-700 uppercase tracking-wider">
+            <PieChart className="w-3 h-3 text-purple-400" />
+            {plan.plan_type === 'full' ? 'Full Payment' : 'Installment'}
           </div>
         </div>
       </div>

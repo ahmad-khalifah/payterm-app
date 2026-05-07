@@ -111,18 +111,18 @@ export default function FeesManagementPage() {
 
     const initializePage = async () => {
       try {
-        // STRICT PROTOCOL: Only use getUser() to validate secure HTTP cookies.
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
-        if (authError || !user) {
+        if (sessionError || !session) {
           router.push('/school-login')
           return
         }
+        const activeUser = session.user
 
         const { data: schoolProfile, error: profileError } = await supabase
           .from('partner_schools')
           .select('name')
-          .eq('id', user.id)
+          .eq('id', activeUser.id)
           .single()
 
         if (profileError || !schoolProfile || !schoolProfile.name) {
@@ -222,7 +222,7 @@ export default function FeesManagementPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold text-[#0a1128] mb-2 tracking-tight flex items-center gap-3">
           <Landmark className="w-8 h-8 text-blue-600" />
-          Fee Configuration & Ledger
+          Fee Configuration & History
         </h1>
         <p className="text-gray-500 font-medium text-sm">Define term fees, preview parent invoices, and view your active class structures.</p>
       </div>

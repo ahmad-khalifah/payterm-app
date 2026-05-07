@@ -43,30 +43,30 @@ export default function NotificationsPage() {
 
     const initialize = async () => {
       try {
-        // Strict server-side auth check
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
-        if (authError || !user) {
+        if (sessionError || !session) {
           return // Handled by layout or middleware routing
         }
+        const activeUser = session.user
         
         if (isMounted) {
-          setUserId(user.id)
-          await fetchNotifications(user.id, isMounted)
+          setUserId(activeUser.id)
+          await fetchNotifications(activeUser.id, isMounted)
 
           // Set up Realtime listener specifically for notifications
           channel = supabase
-            .channel(`notifications-${user.id}`)
+            .channel(`notifications-${activeUser.id}`)
             .on(
               'postgres_changes',
               { 
                 event: 'INSERT', 
                 schema: 'public', 
                 table: 'notifications',
-                filter: `parent_id=eq.${user.id}` 
+                filter: `parent_id=eq.${activeUser.id}` 
               },
               () => {
-                if (isMounted) fetchNotifications(user.id, isMounted) 
+                if (isMounted) fetchNotifications(activeUser.id, isMounted) 
               }
             )
             .subscribe()

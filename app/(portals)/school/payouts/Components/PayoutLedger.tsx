@@ -80,7 +80,7 @@ export default function PayoutLedger({ withdrawalHistory }: { withdrawalHistory:
       <div className="p-6 border-b border-gray-100 bg-white flex justify-between items-center">
         <h3 className="text-lg font-bold text-[#0a1128] flex items-center gap-2">
           <ReceiptText className="w-5 h-5 text-blue-600" />
-          Payout Ledger
+          Payout History
         </h3>
         <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50 px-3 py-1.5 rounded-md border border-gray-200">
           {withdrawalHistory.length} Records

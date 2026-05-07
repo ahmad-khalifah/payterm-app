@@ -75,17 +75,20 @@ export default function SettingsPage() {
 
     const initializePage = async () => {
       try {
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        // DEMO-SAFE FIX: Instant local storage check
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
-        if (authError || !user) {
+        if (sessionError || !session) {
           router.push('/school-login')
           return
         }
 
+        const activeUser = session.user
+
         const { data: schoolProfile } = await supabase
           .from('partner_schools')
           .select('name')
-          .eq('id', user.id)
+          .eq('id', activeUser.id)
           .single()
 
         if (!schoolProfile) {
@@ -95,8 +98,8 @@ export default function SettingsPage() {
 
         if (isMounted) {
           setTargetSchool(schoolProfile.name)
-          setSchoolId(user.id)
-          await fetchSettingsData(user.id, schoolProfile.name as string)
+          setSchoolId(activeUser.id)
+          await fetchSettingsData(activeUser.id, schoolProfile.name as string)
         }
       } catch (err) {
         console.error("Auth Error:", err)

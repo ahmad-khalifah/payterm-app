@@ -4,22 +4,27 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
-import { approveSchoolAction, suspendSchoolAction, toggleSchoolTierAction } from '@/app/actions/admin'
-import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- Ensure this path is correct!
+import { approveSchoolAction, suspendSchoolAction } from '@/app/actions/admin' // Removed toggleSchoolTierAction
+import { useRealtimeSync } from '@/lib/useRealtimeSync' 
 
 import { 
   Building2, Search, Download, Settings, 
   MapPin, Mail, Phone, Wallet, Clock, 
   CheckCircle2, AlertCircle, ShieldCheck,
-  TrendingUp, TrendingDown, Ban, FileSearch
+  Ban, FileSearch
 } from 'lucide-react'
 
-// --- UNIVERSAL PRICING ENGINE ---
-const getFeeBreakdown = (totalInvoice: number) => {
-  if (totalInvoice <= 52499) return { fee: 2500, base: totalInvoice - 2500 }
-  if (totalInvoice <= 105000) return { fee: 5000, base: totalInvoice - 5000 }
-  if (totalInvoice <= 208500) return { fee: 8500, base: totalInvoice - 8500 }
-  return { fee: 10000, base: totalInvoice - 10000 }
+// --- UPDATED UNIVERSAL PRICING ENGINE ---
+const getFeeBreakdown = (parentTotalFee: number, isInstallment: boolean = true) => {
+  let fee = 0;
+  if (parentTotalFee <= 103500) { 
+    fee = isInstallment ? 3500 : 1500;
+  } else if (parentTotalFee <= 207500) {
+    fee = isInstallment ? 5500 : 2500;
+  } else {
+    fee = isInstallment ? 7500 : 3500;
+  }
+  return { fee, base: parentTotalFee - fee }
 }
 
 export default function AdminSchoolsPage() {
@@ -31,7 +36,6 @@ export default function AdminSchoolsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [platformEscrow, setPlatformEscrow] = useState(0)
 
-  // 1. Fetch Function (NO HOOKS ALLOWED INSIDE HERE)
   const fetchSchoolsAndEscrow = useCallback(async (isMounted: boolean = true, isSilent: boolean = false) => {
     try {
       if (isMounted && !isSilent) setLoading(true)
@@ -53,7 +57,7 @@ export default function AdminSchoolsPage() {
 
       const { data: plansData, error: plansError } = await supabase
         .from('active_plans')
-        .select('school_id, status, amount_paid, total_fee')
+        .select('school_id, status, amount_paid, total_fee, plan_type') as any;
 
       if (plansError) throw plansError
 
@@ -62,18 +66,23 @@ export default function AdminSchoolsPage() {
 
       const augmentedSchools = schoolsData.map(school => {
         let schoolEscrow = 0
-        const schoolPlans = safePlans.filter(p => p.school_id === school.id)
+        const schoolPlans = safePlans.filter((p: any) => p.school_id === school.id)
 
-        const isTier2 = (school as any).tier === 'Tier 2'
-        const payoutRate = isTier2 ? 0.70 : 0.60
+        // UNIVERSAL PAYOUT RATE: 70% Day 1 for Installments (60% Parent + 10% TAJBank)
+        const payoutRate = 0.70 
 
-        schoolPlans.forEach(plan => {
+        schoolPlans.forEach((plan: any) => {
           const isEscrow = plan.status === 'Pending Verification' || plan.status === 'Pending Escrow'
           if (isEscrow && Number(plan.amount_paid) > 0) {
-            const { base: baseTuition } = getFeeBreakdown(Number(plan.total_fee))
-            const schoolTranche = baseTuition * payoutRate
-            schoolEscrow += schoolTranche
-            globalEscrow += schoolTranche
+            
+            const isInstallment = plan.plan_type !== 'full';
+            const { base: baseTuition } = getFeeBreakdown(Number(plan.total_fee), isInstallment);
+            
+            // If they paid in full, 100% of the tuition goes to escrow. Otherwise, flat 70%.
+            const schoolTranche = isInstallment ? (baseTuition * payoutRate) : baseTuition;
+            
+            schoolEscrow += schoolTranche;
+            globalEscrow += schoolTranche;
           }
         })
 
@@ -93,19 +102,18 @@ export default function AdminSchoolsPage() {
     }
   }, [])
 
-  // 2. THE CUSTOM HOOK MUST BE AT THE TOP LEVEL OF THE COMPONENT
   useRealtimeSync(() => fetchSchoolsAndEscrow(true, true))
 
-  // 3. Normal initial load & Auth Check
   useEffect(() => {
     let isMounted = true
 
     const initializePage = async () => {
       try {
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
-        if (authError || !user) { router.push('/admin-login'); return }
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        if (sessionError || !session) { router.push('/admin-login'); return }
+        const activeUser = session.user
 
-        const { data: hqData } = await supabase.from('hq_users').select('role').eq('user_email', user.email || '').maybeSingle()
+        const { data: hqData } = await supabase.from('hq_users').select('role').eq('user_email', activeUser.email || '').maybeSingle()
         if (!hqData) { await supabase.auth.signOut(); router.push('/admin-login'); return }
 
         if (isMounted) {
@@ -187,41 +195,12 @@ export default function AdminSchoolsPage() {
       ), { duration: Infinity })
   }
 
-  const handleToggleTier = (schoolId: string, schoolName: string, currentTier: string) => {
-    const newTier = currentTier === 'Tier 1' ? 'Tier 2' : 'Tier 1'
-    toast((t) => (
-        <div className="flex flex-col gap-3">
-          <p className="text-sm font-bold text-[#0a1128]">Upgrade {schoolName} to {newTier}?</p>
-          <p className="text-xs text-gray-500">Ensure GSI mandates are signed.</p>
-          <div className="flex gap-2 mt-1">
-            <button 
-              onClick={async () => {
-                toast.dismiss(t.id)
-                setActionLoading(schoolId)
-                const loadingToast = toast.loading(`Upgrading to ${newTier}...`)
-                try {
-                  await toggleSchoolTierAction(schoolId, newTier)
-                  toast.success(`Upgraded to ${newTier}.`, { id: loadingToast })
-                  fetchSchoolsAndEscrow(true, true)
-                } catch (err: any) { 
-                  toast.error(`Tier update failed: ${err.message}`, { id: loadingToast }) 
-                } finally { setActionLoading(null) }
-              }}
-              className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors"
-            >
-              Confirm Upgrade
-            </button>
-            <button onClick={() => toast.dismiss(t.id)} className="bg-gray-100 text-[#0a1128] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200">Cancel</button>
-          </div>
-        </div>
-      ), { duration: Infinity })
-  }
-
   const handleDownloadCSV = () => {
-    const headers = ['Institution', 'State', 'Contact Email', 'Contact Phone', 'Tier', 'Unclaimed Escrow (NGN)', 'Status', 'Date Joined']
+    // Removed Tier column from CSV
+    const headers = ['Institution', 'State', 'Contact Email', 'Contact Phone', 'Unclaimed Escrow (NGN)', 'Status', 'Date Joined']
     const csvRows = [headers.join(',')]
     filteredSchools.forEach(s => {
-      const row = [`"${s.name}"`, `"${s.state || 'N/A'}"`, `"${s.finance_email || s.email}"`, `"${s.contact_phone}"`, `"${(s as any).tier || 'Tier 1'}"`, `"${s.unclaimed_escrow || 0}"`, `"${s.status}"`, `"${new Date(s.created_at).toLocaleDateString()}"`]
+      const row = [`"${s.name}"`, `"${s.state || 'N/A'}"`, `"${s.finance_email || s.email}"`, `"${s.contact_phone}"`, `"${s.unclaimed_escrow || 0}"`, `"${s.status}"`, `"${new Date(s.created_at).toLocaleDateString()}"`]
       csvRows.push(row.join(','))
     })
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' })
@@ -327,7 +306,6 @@ export default function AdminSchoolsPage() {
                   <div className="flex-1 min-w-[200px]">
                     <div className="flex flex-wrap items-center gap-2 mb-1.5">
                       <h3 className="font-extrabold text-[#0a1128] text-sm tracking-tight flex items-center gap-1.5">{school.name}</h3>
-                      <span className="px-2 py-0.5 rounded text-blue-700 bg-blue-50 border border-blue-200 text-[8px] font-bold tracking-wider uppercase">{(school as any).tier || 'Tier 1'}</span>
                     </div>
                     <div className="flex items-center gap-2 text-[11px] font-medium text-gray-500">
                       {school.state && (<span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-gray-400" /> {school.state}</span>)}
@@ -361,9 +339,6 @@ export default function AdminSchoolsPage() {
                       )}
                       {school.status === 'Active' && (
                         <>
-                          <button onClick={() => handleToggleTier(school.id, school.name, (school as any).tier || 'Tier 1')} disabled={actionLoading === school.id} 
-                            className="flex-1 sm:flex-none px-3 py-2 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-xl text-[11px] font-bold transition-all shadow-sm disabled:opacity-50 active:scale-95 flex items-center justify-center gap-1"
-                          >{actionLoading === school.id ? '...' : ((school as any).tier === 'Tier 2' ? <><TrendingDown className="w-3 h-3" /> Tier 1</> : <><TrendingUp className="w-3 h-3" /> Tier 2</>)}</button>
                           <button onClick={() => handleRevoke(school.id, school.name)} disabled={actionLoading === school.id} 
                             className="flex-1 sm:flex-none px-3 py-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-xl text-[11px] font-bold transition-all shadow-sm disabled:opacity-50 active:scale-95 flex items-center justify-center gap-1"
                           >{actionLoading === school.id ? '...' : <><Ban className="w-3 h-3" /> Suspend</>}</button>

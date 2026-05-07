@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import toast from 'react-hot-toast'
-import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- Adjust this path if necessary!
+import { useRealtimeSync } from '@/lib/useRealtimeSync' 
 
 import { 
   Building2, Users, AlertTriangle, Wallet, 
@@ -12,19 +12,24 @@ import {
   ArrowUpRight, XCircle
 } from 'lucide-react'
 
-// --- UNIVERSAL PRICING ENGINE ---
-const getFeeBreakdown = (totalInvoice: number) => {
-  if (!totalInvoice || totalInvoice <= 0) return { fee: 0, base: 0 }
-  if (totalInvoice <= 52499) return { fee: 2500, base: totalInvoice - 2500 }
-  if (totalInvoice <= 105000) return { fee: 5000, base: totalInvoice - 5000 }
-  if (totalInvoice <= 208500) return { fee: 8500, base: totalInvoice - 8500 }
-  return { fee: 10000, base: totalInvoice - 10000 }
+// --- UPDATED UNIVERSAL TIERED PRICING ENGINE ---
+const getFeeBreakdown = (parentTotalFee: number, isInstallment: boolean = true) => {
+  if (!parentTotalFee || parentTotalFee <= 0) return { fee: 0, base: 0 };
+  let fee = 0;
+  if (parentTotalFee <= 103500) { 
+    fee = isInstallment ? 3500 : 1500;
+  } else if (parentTotalFee <= 207500) {
+    fee = isInstallment ? 5500 : 2500;
+  } else {
+    fee = isInstallment ? 7500 : 3500;
+  }
+  return { fee, base: parentTotalFee - fee }
 }
 
 export default function AdminDashboard() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
-  const [isInitializing, setIsInitializing] = useState(true) // Session Lock
+  const [isInitializing, setIsInitializing] = useState(true) 
   const [fetchError, setFetchError] = useState<string | null>(null)
   
   const [stats, setStats] = useState({
@@ -38,7 +43,6 @@ export default function AdminDashboard() {
     overdraftExposure: 0 
   })
 
-  // 1. Properly lift fetch function into a useCallback OUTSIDE of useEffect
   const fetchLiveStats = useCallback(async (isMounted: boolean = true, isSilent: boolean = false) => {
     try {
       setFetchError(null)
@@ -55,7 +59,7 @@ export default function AdminDashboard() {
 
       const schoolsData = schoolsResponse.data || []
       const studentData = studentsResponse.data || []
-      const planData = plansResponse.data || []
+      const planData: any[] = plansResponse.data || []
 
       let parentCount = 0
       let vault = 0
@@ -67,33 +71,41 @@ export default function AdminDashboard() {
       const activeSchoolsCount = schoolsData.filter((s: any) => s.status === 'Active').length
 
       studentData.forEach((student: any) => {
-        const studentPlan = planData.find((p: any) => p.student_id === student.id && p.status !== 'Completed')
+        // FIX 1: Removed the "status !== 'Completed'" restriction so full payments are included
+        const studentPlan = planData.find((p: any) => p.student_id === student.id)
         if (!studentPlan) return
         
         parentCount++
 
+        // SMART LIQUIDITY MATH
+        const isInstallment = studentPlan.plan_type !== 'full'
         const totalInvoice = Number(studentPlan.total_fee) || 0
-        const { fee: serviceFee, base: baseTuition } = getFeeBreakdown(totalInvoice)
+        const { fee: serviceFee, base: baseTuition } = getFeeBreakdown(totalInvoice, isInstallment)
+        
         const amountPaid = Number(studentPlan.amount_paid) || 0
         const progress = totalInvoice > 0 ? (amountPaid / totalInvoice) : 0
 
         vault += amountPaid
-        
         if (amountPaid > 0) revenue += serviceFee
-
-        const school = schoolsData.find((s: any) => s.id === studentPlan.school_id)
-        const isTier2 = school && (school as any).tier === 'Tier 2'
-        const payoutRate = isTier2 ? 0.70 : 0.60
         
-        const isVerified = student.enrollment_status === 'Verified' || studentPlan.status === 'Active'
+        // FIX 2: Treat 'Completed' plans as fully verified
+        const isVerified = student.enrollment_status === 'Verified' || studentPlan.status === 'Active' || studentPlan.status === 'Completed'
         
         if (isVerified) {
-          if (progress >= 0.59 && progress < 0.99) {
-            deployed += (baseTuition * payoutRate)
-            recoverable += (totalInvoice - amountPaid) 
-            if (isTier2) overdraft += (baseTuition * 0.10)
-          } else if (progress >= 0.99) {
-            deployed += baseTuition 
+          if (!isInstallment) {
+            // FULL PAYMENT: 100% deployment, no gap funding, no partial recoverable math
+            if (progress >= 0.99) {
+              deployed += baseTuition
+            }
+          } else {
+            // UNIVERSAL INSTALLMENT: Partial deployment with universal 10% Gap Funding math
+            if (progress >= 0.59 && progress < 0.99) {
+              deployed += (baseTuition * 0.70) 
+              recoverable += (totalInvoice - amountPaid) 
+              overdraft += (baseTuition * 0.10) 
+            } else if (progress >= 0.99) {
+              deployed += baseTuition 
+            }
           }
         }
       })
@@ -122,27 +134,28 @@ export default function AdminDashboard() {
     }
   }, [])
 
-  // 2. THE HOOK GOES HERE, AT THE TOP LEVEL
   useRealtimeSync(() => fetchLiveStats(true, true))
 
-  // 3. Normal initial load
   useEffect(() => {
     let isMounted = true;
 
     const initializePage = async () => {
       try {
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        // DEMO-SAFE FIX: Instant local storage check instead of server ping
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
-        if (authError || !user) {
+        if (sessionError || !session) {
           router.push('/admin-login')
           return
         }
 
-        // CRITICAL HQ VERIFICATION
+        // Extract the user from the active session
+        const activeUser = session.user
+
         const { data: hqData } = await supabase
           .from('hq_users')
           .select('role')
-          .eq('user_email', user.email as string)
+          .eq('user_email', activeUser.email as string)
           .maybeSingle()
 
         if (!hqData) {
@@ -151,7 +164,6 @@ export default function AdminDashboard() {
           return
         }
 
-        // If authenticated as HQ, fetch the stats normally on first load
         if (isMounted) {
            await fetchLiveStats(isMounted, false)
         }

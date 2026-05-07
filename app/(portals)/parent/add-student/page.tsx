@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase' 
 import Link from 'next/link'
-import PaymentPreviewBox from './components/PaymentPreviewBox'
+import PaymentPreviewBox from './components/PaymentPreviewBox' 
 import toast from 'react-hot-toast'
-import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
+import { useRealtimeSync } from '@/lib/useRealtimeSync' 
 
 import { ArrowLeft, User, Building2, CreditCard, AlertCircle, ChevronDown } from 'lucide-react'
 
@@ -15,6 +15,9 @@ export default function AddStudentPage() {
   const [loadingSchools, setLoadingSchools] = useState(true)
   const [loadingClasses, setLoadingClasses] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // NEW: State to track what the parent clicks in the Preview Box
+  const [paymentMode, setPaymentMode] = useState<'installment' | 'full'>('installment')
 
   const [schools, setSchools] = useState<any[]>([])
   const [availableClasses, setAvailableClasses] = useState<any[]>([])
@@ -74,29 +77,26 @@ export default function AddStudentPage() {
     }
   }, [form.schoolName, form.session, form.term])
 
-  // 3. THE HOOKS GO HERE: At the top level!
+  // 3. Hooks
   useRealtimeSync(() => fetchSchools())
   useRealtimeSync(() => fetchClasses())
 
-  // 4. Normal Component Initialization (Initial Load)
+  // 4. Initial Load
   useEffect(() => {
     fetchSchools()
   }, [fetchSchools])
 
-  // 5. Normal dependency-based fetching (When form values change)
+  // 5. Dependency-based fetching
   useEffect(() => {
     fetchClasses()
-    // Reset class selection when parent variables change
     if (form.schoolName && form.session && form.term) {
        setForm(prev => ({ ...prev, className: '' }))
     }
   }, [fetchClasses, form.schoolName, form.session, form.term])
 
-  // Handle strict submission
   const handleLinkStudent = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Front-end validation to prevent null submission errors
     if (!form.fullName || !form.schoolName || !form.session || !form.term || !form.className) {
       return toast.error("Please fill in all required fields.")
     }
@@ -113,7 +113,6 @@ export default function AddStudentPage() {
       const selectedSchool = schools.find(s => s.name === form.schoolName && s.state === form.state)
       if (!selectedSchool || !selectedSchool.id) throw new Error("Could not verify the internal School ID.")
 
-      // Insert Student
       const { data: studentData, error: studentError } = await supabase
         .from('students')
         .insert({
@@ -130,7 +129,7 @@ export default function AddStudentPage() {
 
       const uniqueCode = `PT-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
       
-      // Insert Plan using strict session/term data
+      // FIX: Explicitly write the chosen paymentMode to the database
       const { error: planError } = await supabase
         .from('active_plans')
         .insert({
@@ -145,15 +144,15 @@ export default function AddStudentPage() {
           mid_term_cleared: false, 
           payterm_advance: 0,
           academic_session: form.session, 
-          term: form.term                
+          term: form.term,
+          plan_type: paymentMode // <-- Saves 'full' or 'installment'        
         } as any) 
 
       if (planError) throw planError
 
-      toast.success("Student profile generated!")
-      toast.success("Redirecting to fund the 60% downpayment...")
+      toast.success("Student profile saved!")
+      toast.success("Redirecting to dashboard to complete payment...")
       
-      // Give the toast 1.5s to be read before redirecting
       setTimeout(() => {
         router.push('/parent') 
       }, 1500)
@@ -165,9 +164,10 @@ export default function AddStudentPage() {
     }
   }
 
-  const activeClassData = availableClasses.find(c => c.class_name === form.className)
   const availableStates = Array.from(new Set(schools.map(s => s.state).filter(Boolean))).sort()
   const filteredSchools = form.state ? schools.filter(s => s.state === form.state) : []
+  
+  const activeClassData = availableClasses.find(c => c.class_name === form.className)
 
   return (
     <div className="w-full max-w-2xl mx-auto p-4 sm:p-6 lg:p-10 animate-in fade-in pb-24">
@@ -179,7 +179,7 @@ export default function AddStudentPage() {
           Back to Dashboard
         </Link>
         <h1 className="text-3xl font-extrabold text-[#0a1128] mb-2 tracking-tight">Add Your Child</h1>
-        <p className="text-gray-500 font-medium">Select their school and instantly set up a flexible payment plan.</p>
+        <p className="text-gray-500 font-medium">Select their school to connect them to your Parent Dashboard.</p>
       </div>
   
       <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-blue-900/5 overflow-hidden relative">
@@ -267,7 +267,6 @@ export default function AddStudentPage() {
                       className="w-full bg-gray-50 border border-gray-200 p-4 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white focus:border-blue-600 text-[#0a1128] font-bold transition-all appearance-none shadow-sm cursor-pointer"
                     >
                       <option value="" disabled>Select year</option>
-                      {/* FIX: Values now perfectly match the Fee Setup strings */}
                       <option value="2026/2027">2026/2027</option>
                       <option value="2027/2028">2027/2028</option>
                     </select>
@@ -296,13 +295,13 @@ export default function AddStudentPage() {
             </div>
           </div>
   
-          {/* STEP 3: Payment Setup */}
+          {/* STEP 3: Class Selection & Preview Box */}
           <div className={`p-6 md:p-8 bg-blue-50/20 transition-all duration-500 ${!form.schoolName || !form.session || !form.term ? 'opacity-30 grayscale pointer-events-none' : 'opacity-100'}`}>
             <h2 className="text-sm font-bold text-gray-900 mb-5 flex items-center gap-3 uppercase tracking-wider">
               <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shadow-inner">
                 <CreditCard className="w-4 h-4" />
               </div>
-              Step 3: Class & Payment Setup
+              Step 3: Class Selection
             </h2>
             
             {form.schoolName && form.session && form.term && availableClasses.length === 0 && !loadingClasses ? (
@@ -328,8 +327,13 @@ export default function AddStudentPage() {
                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
                 </div>
-  
-                <PaymentPreviewBox activeClassData={activeClassData} />
+                
+                {/* DYNAMIC PREVIEW BOX: Passes state and update function down */}
+                <PaymentPreviewBox 
+                  activeClassData={activeClassData} 
+                  paymentMode={paymentMode} 
+                  onModeChange={setPaymentMode} 
+                />
               </div>
             )}
           </div>
@@ -341,7 +345,7 @@ export default function AddStudentPage() {
               disabled={isSubmitting || !form.schoolName || !form.session || !form.term || !form.className} 
               className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white py-4 rounded-xl font-bold text-base transition-all disabled:from-gray-200 disabled:to-gray-200 disabled:text-gray-400 flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg shadow-blue-500/20 disabled:shadow-none"
             >
-              {isSubmitting ? 'Generating Payment Plan...' : 'Continue to Payment Plan'}
+              {isSubmitting ? 'Adding Child Profile...' : `Save ${paymentMode === 'full' ? 'Full Payment' : 'Installment'} Plan & Proceed`}
             </button>
           </div>
         </form>

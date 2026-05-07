@@ -62,18 +62,19 @@ export default function AdminSettingsPage() {
 
     const initializePage = async () => {
       try {
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
-        if (authError || !user) {
+        if (sessionError || !session) {
           router.push('/admin-login')
           return
         }
+        const activeUser = session.user
 
         // CRITICAL HQ VERIFICATION
         const { data: hqData } = await supabase
           .from('hq_users')
           .select('role')
-          .eq('user_email', user.email as string || '')
+          .eq('user_email', activeUser.email as string || '')
           .maybeSingle()
 
         if (!hqData) {

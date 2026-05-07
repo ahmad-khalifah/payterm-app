@@ -6,24 +6,31 @@ import Link from 'next/link'
 import { supabase } from '../../../lib/supabase'
 import toast from 'react-hot-toast'
 import { useRealtimeSync } from '@/lib/useRealtimeSync'
-import { UserPlus, FileText, ChevronRight, AlertCircle, Wallet, CheckCircle2, Bell } from 'lucide-react'
+import { UserPlus, ChevronRight, AlertCircle, Wallet, CheckCircle2, Bell } from 'lucide-react'
 
 import DummyPaystack from './components/DummyPaystack'
 import StudentCard from './components/StudentCard'
 import RenewalModal from './components/RenewalModal'
 import ReceiptModal from './components/ReceiptModal'
 
-// --- UNIVERSAL PRICING ENGINE ---
-export const getFeeBreakdown = (totalInvoice: number) => {
-  if (totalInvoice <= 52499) return { fee: 2500, base: totalInvoice - 2500 }
-  if (totalInvoice <= 105000) return { fee: 5000, base: totalInvoice - 5000 }
-  if (totalInvoice <= 208500) return { fee: 8500, base: totalInvoice - 8500 }
-  return { fee: 10000, base: totalInvoice - 10000 }
+// --- UNIVERSAL TIERED PRICING ENGINE ---
+export const getFeeBreakdown = (parentTotalFee: number, isInstallment: boolean = true) => {
+  let fee = 0;
+  
+  if (parentTotalFee <= 103500) { 
+    fee = isInstallment ? 3500 : 1500;
+  } else if (parentTotalFee <= 207500) {
+    fee = isInstallment ? 5500 : 2500;
+  } else {
+    fee = isInstallment ? 7500 : 3500;
+  }
+
+  return { fee, base: parentTotalFee - fee }
 }
 
 export default function ParentDashboard() {
   const router = useRouter()
-  const [isInitializing, setIsInitializing] = useState(true) // <-- Strict Session Lock
+  const [isInitializing, setIsInitializing] = useState(true)
   const [parentName, setParentName] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [childrenData, setChildrenData] = useState<any[]>([])
@@ -31,7 +38,7 @@ export default function ParentDashboard() {
   const [activeReceipt, setActiveReceipt] = useState<any | null>(null)
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null)
   const [renewConfig, setRenewConfig] = useState<any | null>(null)
-
+  
   const [breakdownConfig, setBreakdownConfig] = useState<{
     plan: any; child: any; isFirstPayment: boolean;
   } | null>(null)
@@ -39,20 +46,21 @@ export default function ParentDashboard() {
   const [paystackConfig, setPaystackConfig] = useState<{
     isOpen: boolean; amount: number; email: string; studentName: string;
     studentClass: string; planId: string; studentId: string; isMidTerm: boolean;
+    mode: 'installment' | 'full';
   } | null>(null)
 
-  // 1. Pure Fetch Function
   const fetchDashboardData = useCallback(async () => {
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      // DEMO-SAFE FIX: Instant local storage check
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
-      if (userError || !user) {
+      if (sessionError || !session) {
         toast.error("Session expired. Please log in again.")
         router.push('/parent-login') 
         return
       }
       
-      const activeUserId = user.id
+      const activeUserId = session.user.id
       setCurrentUserId(activeUserId)
       
       const { data: parentProfile } = await supabase.from('parents').select('full_name').eq('id', activeUserId).single()
@@ -64,7 +72,7 @@ export default function ParentDashboard() {
           id, full_name, school_id, student_class, enrollment_status,
           active_plans ( 
             id, total_fee, amount_paid, next_payment_date, status, clearance_code, created_at,
-            academic_session, term,
+            academic_session, term, plan_type,
             payment_history ( id, amount, receipt_number, payment_date, status )
           )
         `)
@@ -106,10 +114,8 @@ export default function ParentDashboard() {
     }
   }, [router])
 
-  // 2. THE HOOK GOES HERE: At the top level! 
   useRealtimeSync(fetchDashboardData)
 
-  // 3. Normal Initialization Check
   useEffect(() => {
     fetchDashboardData()
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
@@ -127,18 +133,48 @@ export default function ParentDashboard() {
     if (!breakdownConfig) return
     const { plan, child, isFirstPayment } = breakdownConfig
     const dummyEmail = parentName ? `${parentName.replace(/\s+/g, '').toLowerCase()}@email.com` : 'parent@email.com'
+    const planMode = plan.plan_type === 'full' ? 'full' : 'installment'
 
     setPaystackConfig({
       isOpen: true, amount: amountToPay, email: dummyEmail, studentName: child.full_name,
-      studentClass: child.student_class, planId: plan.id, studentId: child.id, isMidTerm: !isFirstPayment
+      studentClass: child.student_class, planId: plan.id, studentId: child.id, isMidTerm: !isFirstPayment,
+      mode: planMode
     })
     setBreakdownConfig(null) 
   }
 
   const handlePaymentSuccess = async (reference: string) => {
     try {
-      if (paystackConfig?.isMidTerm) {
-        await supabase.from('active_plans').update({ mid_term_cleared: true }).eq('id', paystackConfig.planId)
+      const isFullPayment = paystackConfig?.mode === 'full';
+      const currentPlanId = paystackConfig?.planId;
+      
+      if (!currentPlanId) throw new Error("Missing Plan ID for payment update");
+      
+      const currentPlan = childrenData.flatMap(c => c.active_plans).find(p => p.id === currentPlanId);
+
+      if (isFullPayment && currentPlan) {
+        // Adjust the total fee in the DB to reflect the cheaper full-payment service fee
+        const { base } = getFeeBreakdown(Number(currentPlan.total_fee), true);
+        const { fee: fullFee } = getFeeBreakdown(Number(currentPlan.total_fee), false);
+        const adjustedTotal = base + fullFee;
+
+        await supabase.from('active_plans').update({ 
+          amount_paid: adjustedTotal,
+          total_fee: adjustedTotal, 
+          status: 'Completed',
+          plan_type: 'full'
+        } as any).eq('id', currentPlanId);
+      } else {
+        const updateData: any = { 
+          plan_type: 'installment',
+          amount_paid: paystackConfig?.isMidTerm ? currentPlan?.total_fee : paystackConfig?.amount 
+        };
+        if (paystackConfig?.isMidTerm) {
+          updateData.mid_term_cleared = true;
+          updateData.status = 'Completed';
+        }
+        
+        await supabase.from('active_plans').update(updateData).eq('id', currentPlanId);
       }
       
       await supabase.from('notifications').insert({
@@ -156,7 +192,6 @@ export default function ParentDashboard() {
     }
   }
 
-  // --- DYNAMIC DASHBOARD METRICS ---
   const enrolledCount = childrenData.length;
   const totalOutstanding = childrenData.reduce((acc, child) => {
     const plan = child.active_plans?.[0];
@@ -165,18 +200,24 @@ export default function ParentDashboard() {
     return acc + Math.max(0, due);
   }, 0);
 
-  // Lock the UI until initialization is complete
   if (isInitializing) return <div className="p-10 text-center text-sm font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Loading...</div>
 
   return (
     <div className="w-full max-w-6xl mx-auto animate-in fade-in pb-24 relative bg-[#f8fafc] min-h-screen">
       
-      {/* PAYMENT BREAKDOWN MODAL */}
+      {/* DYNAMIC PAYMENT BREAKDOWN MODAL */}
       {breakdownConfig && (() => {
-        const { fee: serviceFee, base: baseTuition } = getFeeBreakdown(Number(breakdownConfig.plan.total_fee))
-        const depositAmount = baseTuition * 0.60
-        const balanceAmount = baseTuition * 0.40
-        const totalDueToday = breakdownConfig.isFirstPayment ? (depositAmount + serviceFee) : balanceAmount
+        const planMode = breakdownConfig.plan.plan_type === 'full' ? 'full' : 'installment'
+        const isInstallment = planMode === 'installment'
+
+        const { fee: activeFee, base: baseTuition } = getFeeBreakdown(Number(breakdownConfig.plan.total_fee), isInstallment)
+        
+        const depositAmount = isInstallment ? (baseTuition * 0.60) : baseTuition
+        const balanceAmount = isInstallment ? (baseTuition * 0.40) : 0
+        
+        const totalDueToday = breakdownConfig.isFirstPayment 
+          ? depositAmount + activeFee
+          : balanceAmount
 
         return (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0a1128]/40 backdrop-blur-md p-4 transition-all">
@@ -184,10 +225,10 @@ export default function ParentDashboard() {
               
               <div className="bg-gradient-to-r from-gray-50 to-white border-b border-gray-100 p-6 flex items-center gap-4">
                 <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center shrink-0">
-                  <FileText className="w-6 h-6" />
+                  <Wallet className="w-6 h-6" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-[#0a1128] tracking-tight leading-tight">Payment Breakdown</h2>
+                  <h2 className="text-lg font-bold text-[#0a1128] tracking-tight leading-tight">Payment Confirmation</h2>
                   <p className="text-xs text-gray-500 mt-0.5">{breakdownConfig.child.full_name} • {breakdownConfig.child.student_class}</p>
                 </div>
               </div>
@@ -195,22 +236,32 @@ export default function ParentDashboard() {
               <div className="p-6 space-y-4">
                 {breakdownConfig.isFirstPayment ? (
                   <>
-                    <div className="flex justify-between items-center text-sm pb-3 border-b border-gray-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${isInstallment ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>
+                        {isInstallment ? 'Installment Plan' : 'Full Payment Plan'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm pb-3 border-b border-gray-100 mt-2">
                       <span className="text-gray-500 font-medium">School Tuition</span>
                       <span className="font-bold text-[#0a1128]">₦{baseTuition.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-500 font-medium">Initial Deposit (60%)</span>
+                    <div className="flex justify-between items-center text-sm pb-3 border-b border-gray-100">
+                      <span className="text-gray-500 font-medium">{isInstallment ? 'Initial Deposit (60%)' : 'Full Tuition (100%)'}</span>
                       <span className="font-bold text-[#0a1128]">₦{depositAmount.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-gray-500 font-medium">Platform Fee</span>
-                      <span className="font-bold text-[#0a1128]">₦{serviceFee.toLocaleString()}</span>
+                      <span className="font-bold text-[#0a1128]">₦{activeFee.toLocaleString()}</span>
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="flex justify-between items-center text-sm pb-3 border-b border-gray-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-orange-50 text-orange-700">
+                        Final Installment
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm pb-3 border-b border-gray-100 mt-2">
                       <span className="text-gray-500 font-medium">Final Balance (40%)</span>
                       <span className="font-bold text-[#0a1128]">₦{balanceAmount.toLocaleString()}</span>
                     </div>
@@ -264,7 +315,7 @@ export default function ParentDashboard() {
         />
       )}
 
-      {/* --- STICKY PROFILE HEADER (ONLY THIS STAYS AT THE TOP) --- */}
+      {/* --- STICKY PROFILE HEADER --- */}
       <header className="sticky top-0 z-40 bg-[#f8fafc]/95 backdrop-blur-md pt-4 sm:pt-6 lg:pt-8 pb-4 border-b border-gray-200/50 px-4 sm:px-6 lg:px-10 transition-all">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -288,10 +339,9 @@ export default function ParentDashboard() {
       {/* --- SCROLLING CONTENT --- */}
       <div className="px-4 sm:px-6 lg:px-10 pt-6">
 
-        {/* THE COMPACT WHITE WIDGET CARD (Now Scrolls Away) */}
+        {/* THE COMPACT WHITE WIDGET CARD */}
         <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-5 sm:p-6 mb-8 transition-all">
           
-          {/* Top Row: Outstanding Balance */}
           <div className="mb-5">
             <p className="text-[11px] font-medium text-gray-500 mb-1">Outstanding Balance</p>
             <div className="text-3xl sm:text-4xl font-black text-[#0a1128] tracking-tight">
@@ -299,29 +349,23 @@ export default function ParentDashboard() {
             </div>
           </div>
 
-          {/* Bottom Row: The Split Brand Pill */}
           <div className="bg-[#0a1128] rounded-2xl flex items-stretch shadow-md shadow-[#0a1128]/10 overflow-hidden">
-            
-            {/* Left Half: Active Plans (Stat Display) */}
             <div className="flex-1 py-3 px-4 flex flex-col items-center justify-center border-r border-white/10">
               <span className="text-[10px] text-blue-200/70 mb-0.5">Active Plans</span>
               <span className="text-sm font-bold text-white">{enrolledCount}</span>
             </div>
             
-            {/* Right Half: Add Child (Navigation Button) */}
             <Link 
               href="/parent/add-student" 
-              className="flex-1 bg-blue-600 hover:bg-blue-500 transition-colors flex items-center justify-center group cursor-pointer"
+              className="flex-1 py-3 px-4 flex flex-col items-center justify-center hover:bg-white/5 active:bg-white/10 transition-colors cursor-pointer"
             >
-              <span className="text-sm font-bold text-white flex items-center gap-2">
-                <UserPlus className="w-4 h-4" />
+              <span className="text-[10px] text-blue-200/70 mb-0.5">New Student</span>
+              <span className="text-sm font-bold text-white flex items-center gap-1.5">
+                <UserPlus className="w-3.5 h-3.5" />
                 Add Child
-                <ChevronRight className="w-4 h-4 text-blue-200 group-hover:translate-x-1 transition-transform" />
               </span>
             </Link>
-
           </div>
-
         </div>
 
         {/* STUDENTS GRID */}

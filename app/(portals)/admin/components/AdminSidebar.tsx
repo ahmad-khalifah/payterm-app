@@ -73,7 +73,7 @@ export default function AdminSidebar() {
         {/* Desktop Logo */}
         <div className="p-6 hidden md:block border-b border-white/5">
           <h2 className="text-2xl font-extrabold tracking-tight block">
-            PayTerm <span className="text-blue-500">HQ</span>
+            PayTerm <span className="text-blue-500">Admin</span>
           </h2>
           <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mt-1">
             Master Control

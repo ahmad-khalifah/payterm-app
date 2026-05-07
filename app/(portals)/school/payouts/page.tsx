@@ -116,14 +116,15 @@ export default function PayoutsPage() {
 
     const initializePage = async () => {
       try {
-        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        // DEMO-SAFE FIX: Instant local storage check
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
-        if (userError || !user) {
+        if (sessionError || !session) {
           router.push('/school-login')
           return
         }
         
-        const activeUserId = user.id
+        const activeUserId = session.user.id
 
         const { data: schoolProfile, error: profileError } = await supabase
           .from('partner_schools')
@@ -169,7 +170,7 @@ export default function PayoutsPage() {
     }
   }, [router, fetchPayoutData])
 
-  if (isInitializing || loading || (!targetSchool && !fetchError)) return <div className="p-10 text-center font-bold text-[#0a1128] tracking-widest text-sm uppercase h-screen flex items-center justify-center animate-pulse">Authenticating Secure Session...</div>
+  if (isInitializing || loading || (!targetSchool && !fetchError)) return <div className="p-10 text-center font-bold text-[#0a1128] tracking-widest text-sm uppercase h-screen flex items-center justify-center animate-pulse">Loading...</div>
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in pb-20">
