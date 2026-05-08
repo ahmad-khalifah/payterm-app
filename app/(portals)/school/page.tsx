@@ -9,11 +9,12 @@ import { useRealtimeSync } from '@/lib/useRealtimeSync'
 import { 
   Building2, AlertCircle, CheckCircle2, Users, Search, 
   Filter, Printer, Wallet, ChevronRight, ChevronDown, ChevronUp,
-  Landmark
+  Landmark, ShieldCheck
 } from 'lucide-react'
 
 // --- UNIVERSAL PRICING ENGINE ---
 const getFeeBreakdown = (parentTotalFee: number, isInstallment: boolean = true) => {
+  if (!parentTotalFee || parentTotalFee <= 0) return { fee: 0, base: 0 };
   let fee = 0;
   if (parentTotalFee <= 103500) { 
     fee = isInstallment ? 3500 : 1500;
@@ -107,12 +108,10 @@ export default function SchoolDashboard() {
             if (!isInstallment) {
               if (progress >= 0.99) childCleared += baseTuition
             } else {
+              // 100% Upfront Logic: If parent hits 60% threshold, school clears 100%
               if (progress >= 0.59) {
-                bankGapContribution = baseTuition * 0.10;
-                childCleared += (baseTuition * 0.70); 
-              }
-              if (progress >= 0.99) {
-                childCleared += (baseTuition * 0.30);
+                bankGapContribution = baseTuition * 0.40; 
+                childCleared += baseTuition; 
               }
             }
             
@@ -172,6 +171,7 @@ export default function SchoolDashboard() {
             parentsOutstanding: outstandingTotal,
             payoutsCleared: cleared,
             totalBankGapDeployed: totalBankGap,
+            // Pending receivables is the portion of expected revenue where parents haven't paid the 60% deposit yet
             schoolPendingReceivables: Math.max(0, expected - cleared)
           })
           setHouseholdLedger(ledgerArr)
@@ -288,7 +288,7 @@ export default function SchoolDashboard() {
               <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-500 border border-gray-200">
                 <Building2 className="w-4 h-4" />
               </div>
-              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Total Expected</p>
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Total Enrolled Tuition</p>
             </div>
             <p className="text-3xl font-black text-[#0a1128] truncate relative z-10 tracking-tight">₦{metrics.totalExpected.toLocaleString()}</p>
           </div>
@@ -297,14 +297,14 @@ export default function SchoolDashboard() {
             <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full blur-2xl -mt-8 -mr-8 transition-transform group-hover:scale-110"></div>
             <div className="flex items-center gap-3 mb-3 relative z-10">
               <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100">
-                <CheckCircle2 className="w-4 h-4" />
+                <ShieldCheck className="w-4 h-4" />
               </div>
-              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Upfront Cleared</p>
+              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Fully Funded (100%)</p>
             </div>
             <p className="text-3xl font-black text-blue-700 truncate relative z-10 tracking-tight">₦{metrics.payoutsCleared.toLocaleString()}</p>
             {metrics.totalBankGapDeployed > 0 && (
               <p className="text-[10px] text-gray-500 font-medium relative z-10 mt-1">
-                Includes ₦{metrics.totalBankGapDeployed.toLocaleString()} Upfront Gap
+                Includes ₦{metrics.totalBankGapDeployed.toLocaleString()} Bank Advance
               </p>
             )}
           </div>
@@ -315,11 +315,11 @@ export default function SchoolDashboard() {
               <div className="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 border border-orange-100">
                 <Landmark className="w-4 h-4" />
               </div>
-              <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest">School Pending</p>
+              <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest">Pending Activation</p>
             </div>
             <p className="text-3xl font-black text-orange-600 truncate relative z-10 tracking-tight">₦{metrics.schoolPendingReceivables.toLocaleString()}</p>
             <p className="text-[10px] text-gray-500 font-medium relative z-10 mt-1">
-              Final tranches awaiting payment.
+              Awaiting 60% parent deposit to unlock funds.
             </p>
           </div>
 
@@ -329,17 +329,17 @@ export default function SchoolDashboard() {
               <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center text-red-600 border border-red-100">
                 <AlertCircle className="w-4 h-4" />
               </div>
-              <p className="text-[10px] font-bold text-red-600 uppercase tracking-widest">Parents Outstanding</p>
+              <p className="text-[10px] font-bold text-red-600 uppercase tracking-widest">Parent Arrears (To Bank)</p>
             </div>
             <p className="text-3xl font-black text-red-600 truncate relative z-10 tracking-tight">₦{metrics.parentsOutstanding.toLocaleString()}</p>
             <p className="text-[10px] text-gray-500 font-medium relative z-10 mt-1">
-              What parents actually owe.
+              Outstanding 40% owed to PayTerm/Bank.
             </p>
           </div>
 
         </div>
     
-        {/* NEW PROFESSIONAL LEDGER TABLE */}
+        {/* PROFESSIONAL LEDGER TABLE */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden print:border-none print:shadow-none">
           
           <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-5 md:px-6 md:py-4 border-b border-gray-200 print:border-b-2 print:border-gray-900 print:mb-4">
@@ -395,9 +395,9 @@ export default function SchoolDashboard() {
                 <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wider font-semibold print:bg-gray-100 print:text-black">
                   <th className="px-6 py-3 font-medium">Household / Contact</th>
                   <th className="px-6 py-3 font-medium">Child Breakdowns</th>
-                  <th className="px-6 py-3 font-medium text-right text-gray-400 print:text-black">Total Arrears</th>
+                  <th className="px-6 py-3 font-medium text-right text-gray-400 print:text-black">Bank Arrears</th>
                   <th className="px-6 py-3 font-medium text-right text-gray-400 print:text-black">Total Paid</th>
-                  <th className="px-6 py-3 font-medium text-right text-gray-400 print:text-black">Cleared Tranche</th>
+                  <th className="px-6 py-3 font-medium text-right text-gray-400 print:text-black">Cleared to School</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 print:divide-gray-300">
@@ -438,7 +438,6 @@ export default function SchoolDashboard() {
                             {visibleChildren.map((child: any, idx: number) => (
                               <div key={idx} className="flex flex-col gap-1 pb-2 border-b border-gray-50 last:border-0 last:pb-0">
                                 
-                                {/* FIX: Tightly grouped Name, Class, and Plan Type Badge */}
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs font-semibold text-gray-900">
                                     {child.student_name} <span className="font-normal text-gray-500">({child.className})</span>
@@ -491,7 +490,7 @@ export default function SchoolDashboard() {
                           ₦{item.total_paid.toLocaleString()}
                         </td>
 
-                        <td className="px-6 py-4 text-right font-mono text-gray-900 text-sm tracking-tight align-top">
+                        <td className="px-6 py-4 text-right font-mono text-green-700 font-bold text-sm tracking-tight align-top">
                           ₦{item.total_cleared.toLocaleString()}
                         </td>
                       </tr>

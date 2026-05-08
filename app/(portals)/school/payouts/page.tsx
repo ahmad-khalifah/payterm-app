@@ -4,25 +4,30 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation' 
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
-import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
+import { useRealtimeSync } from '@/lib/useRealtimeSync'
 import { Wallet, ArrowDownCircle, AlertCircle } from 'lucide-react'
 
 import WithdrawalForm from './Components/WithdrawalForm'
 import PayoutLedger from './Components/PayoutLedger'
 
-// --- UNIVERSAL PRICING ENGINE ---
-const getFeeBreakdown = (totalInvoice: number) => {
-  if (!totalInvoice || totalInvoice <= 0) return { fee: 0, base: 0 }
-  if (totalInvoice <= 52499) return { fee: 2500, base: totalInvoice - 2500 }
-  if (totalInvoice <= 105000) return { fee: 5000, base: totalInvoice - 5000 }
-  if (totalInvoice <= 208500) return { fee: 8500, base: totalInvoice - 8500 }
-  return { fee: 10000, base: totalInvoice - 10000 }
+// --- UPDATED UNIVERSAL PRICING ENGINE ---
+const getFeeBreakdown = (parentTotalFee: number, isInstallment: boolean = true) => {
+  if (!parentTotalFee || parentTotalFee <= 0) return { fee: 0, base: 0 };
+  let fee = 0;
+  if (parentTotalFee <= 103500) { 
+    fee = isInstallment ? 3500 : 1500;
+  } else if (parentTotalFee <= 207500) {
+    fee = isInstallment ? 5500 : 2500;
+  } else {
+    fee = isInstallment ? 7500 : 3500;
+  }
+  return { fee, base: parentTotalFee - fee }
 }
 
 export default function PayoutsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
-  const [isInitializing, setIsInitializing] = useState(true) // Session Lock
+  const [isInitializing, setIsInitializing] = useState(true) 
   const [fetchError, setFetchError] = useState<string | null>(null)
   
   const [totalAvailable, setTotalAvailable] = useState(0)
@@ -30,18 +35,14 @@ export default function PayoutsPage() {
   
   const [targetSchool, setTargetSchool] = useState<string | null>(null)
   const [schoolId, setSchoolId] = useState<string | null>(null) 
-  const [schoolTier, setSchoolTier] = useState<string>('Tier 1')
 
-  // 1. Extract the fetch function purely, with no hooks inside it
-  const fetchPayoutData = useCallback(async (uuid: string, name: string, tier: string, isMounted: boolean = true, isSilent: boolean = false) => {
+  // 1. Extract the fetch function purely, matching the Dashboard logic exactly
+  const fetchPayoutData = useCallback(async (uuid: string, name: string, isMounted: boolean = true, isSilent: boolean = false) => {
     try {
       if (isMounted && !isSilent) {
         setLoading(true)
         setFetchError(null)
       }
-
-      const payoutRate = tier === 'Tier 2' ? 0.70 : 0.60
-      const remainderRate = tier === 'Tier 2' ? 0.30 : 0.40
 
       const [
         { data: studentData, error: studentError },
@@ -57,27 +58,40 @@ export default function PayoutsPage() {
       if (planError) throw new Error(`Plan Fetch: ${planError.message}`)
       if (withdrawalError) throw new Error(`Withdrawal Fetch: ${withdrawalError.message}`)
 
-      const safeStudents = studentData || []
-      const safePlans = planData || []
-      const safeWithdrawals = withdrawalData || []
+        const safeStudents: any[] = studentData || []
+        const safePlans: any[] = planData || []
+        const safeWithdrawals: any[] = withdrawalData || []
 
       let totalEarned = 0
       let totalWithdrawn = 0
 
       safeStudents.forEach((student: any) => {
-        const studentPlan = safePlans.find((p: any) => p.student_id === student.id && p.status !== 'Completed')
+        // Find the active or completed plan for this student
+        const studentPlan = safePlans.find((p: any) => p.student_id === student.id)
         if (!studentPlan) return
 
-        const isVerified = student.enrollment_status === 'Verified' || studentPlan.status === 'Active'
+        const isVerified = student.enrollment_status === 'Verified' || studentPlan.status === 'Active' || studentPlan.status === 'Completed'
         if (!isVerified) return
 
-        const totalInvoice = Number(studentPlan.total_fee) || 0
-        const amountPaid = Number(studentPlan.amount_paid) || 0
-        const progress = totalInvoice > 0 ? (amountPaid / totalInvoice) : 0
-        const { base: baseTuition } = getFeeBreakdown(totalInvoice)
-
-        if (progress >= 0.59) totalEarned += (baseTuition * payoutRate) 
-        if (progress >= 0.99) totalEarned += (baseTuition * remainderRate)
+        const isInstallment = studentPlan.plan_type !== 'full'
+        const { fee: serviceFee, base: baseTuition } = getFeeBreakdown(Number(studentPlan.total_fee), isInstallment)
+        
+        const rawAmountPaid = Number(studentPlan.amount_paid) || 0
+        const schoolAmountPaid = rawAmountPaid > 0 ? Math.max(0, rawAmountPaid - serviceFee) : 0
+        
+        if (schoolAmountPaid > 0) {
+          const progress = schoolAmountPaid / baseTuition
+          
+          if (!isInstallment) {
+            // Full payment clears 100%
+            if (progress >= 0.99) totalEarned += baseTuition
+          } else {
+            // Installment clears 100% upfront (60% from parent + 40% from bank)
+            if (progress >= 0.59) {
+              totalEarned += baseTuition 
+            }
+          }
+        }
       })
 
       if (isMounted) setWithdrawalHistory(safeWithdrawals)
@@ -89,6 +103,7 @@ export default function PayoutsPage() {
       })
 
       if (isMounted) {
+        // The exact cleared balance available for the school to withdraw
         setTotalAvailable(totalEarned - totalWithdrawn)
         setFetchError(null)
       }
@@ -102,11 +117,10 @@ export default function PayoutsPage() {
     }
   }, [])
 
-  // 2. THE HOOK GOES HERE: At the top level of the component!
-  // We only run the silent fetch if the IDs have been loaded into state.
+  // 2. THE HOOK GOES HERE
   useRealtimeSync(() => {
-    if (schoolId && targetSchool && schoolTier) {
-      fetchPayoutData(schoolId, targetSchool, schoolTier, true, true)
+    if (schoolId && targetSchool) {
+      fetchPayoutData(schoolId, targetSchool, true, true)
     }
   })
 
@@ -116,7 +130,6 @@ export default function PayoutsPage() {
 
     const initializePage = async () => {
       try {
-        // DEMO-SAFE FIX: Instant local storage check
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
         if (sessionError || !session) {
@@ -128,7 +141,7 @@ export default function PayoutsPage() {
 
         const { data: schoolProfile, error: profileError } = await supabase
           .from('partner_schools')
-          .select('*')
+          .select('name')
           .eq('id', activeUserId) 
           .maybeSingle() 
 
@@ -143,11 +156,8 @@ export default function PayoutsPage() {
           setTargetSchool(schoolProfile.name as string)
           setSchoolId(activeUserId) 
           
-          const fetchedTier = (schoolProfile as any).tier || 'Tier 1'
-          setSchoolTier(fetchedTier)
-          
           // Initial non-silent load
-          await fetchPayoutData(activeUserId, schoolProfile.name as string, fetchedTier, isMounted, false) 
+          await fetchPayoutData(activeUserId, schoolProfile.name as string, isMounted, false) 
         }
       } catch (err) {
         console.error("Initialization Error:", err)
@@ -220,7 +230,7 @@ export default function PayoutsPage() {
             onSuccess={() => {
               if (schoolId && targetSchool) {
                 // When they submit a form, fetch fresh data silently right away
-                fetchPayoutData(schoolId, targetSchool, schoolTier, true, true)
+                fetchPayoutData(schoolId, targetSchool, true, true)
               }
             }}
           />

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
-import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
+import { useRealtimeSync } from '@/lib/useRealtimeSync' 
 
 import { 
   ReceiptText, AlertCircle, Search, Filter, 
@@ -16,20 +16,20 @@ import {
 export default function AdminCollectionsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
-  const [isInitializing, setIsInitializing] = useState(true) // HQ Session Lock
+  const [isInitializing, setIsInitializing] = useState(true) 
   const [collections, setCollections] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState('All')
 
-  // 1. BULLETPROOF FETCH: No hooks inside this function
+  // 1. BULLETPROOF FETCH
   const fetchCollections = useCallback(async (isMounted: boolean = true, isSilent: boolean = false) => {
     try {
       if (isMounted && !isSilent) setLoading(true)
 
+      // FIX: Fetch EVERYTHING so test data isn't hidden by a status filter
       const { data: plansData, error: planError } = await supabase
         .from('active_plans')
         .select('*')
-        .neq('status', 'Completed')
 
       if (planError) throw planError
 
@@ -79,7 +79,10 @@ export default function AdminCollectionsPage() {
           }
         }
 
-        const outstanding = Math.max(0, Number(curr.total_fee) - Number(curr.amount_paid))
+        // FIX: Safe math parsing to prevent NaN loop crashes
+        const totalFee = Number(curr.total_fee) || 0
+        const amountPaid = Number(curr.amount_paid) || 0
+        const outstanding = Math.max(0, totalFee - amountPaid)
         
         acc[pId].total_outstanding += outstanding
         acc[pId].statuses.add(curr.status)
@@ -107,6 +110,8 @@ export default function AdminCollectionsPage() {
         if (group.statuses.has('Default')) householdStatus = 'Default'
         else if (group.statuses.has('Late')) householdStatus = 'Late'
         else if (group.statuses.has('Pending Verification') || group.statuses.has('Pending Escrow')) householdStatus = 'Pending'
+        // Detect if all plans are fully paid
+        else if (Array.from(group.statuses).every((s: any) => s === 'Completed')) householdStatus = 'Completed'
 
         return { ...group, household_status: householdStatus }
       })
@@ -127,7 +132,7 @@ export default function AdminCollectionsPage() {
     }
   }, [])
 
-  // 2. THE CUSTOM HOOK: Must be at the top level
+  // 2. THE CUSTOM HOOK
   useRealtimeSync(() => fetchCollections(true, true))
 
   // 3. Normal Initial Load & Auth check
@@ -136,7 +141,6 @@ export default function AdminCollectionsPage() {
 
     const initializePage = async () => {
       try {
-        // DEMO-SAFE FIX: Instant local storage check instead of server ping
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
         if (sessionError || !session) {
@@ -146,7 +150,6 @@ export default function AdminCollectionsPage() {
 
         const activeUser = session.user
 
-        // CRITICAL HQ VERIFICATION
         const { data: hqData } = await supabase
           .from('hq_users')
           .select('role')
@@ -190,8 +193,9 @@ export default function AdminCollectionsPage() {
     })
   }
 
+  // FIX: Null-safe search string parsing
   const filteredData = collections.filter(item => {
-    const searchString = `${item.parent_name} ${item.parent_phone} ${item.children.map((c: any) => `${c.student_name} ${c.school_name}`).join(' ')}`.toLowerCase()
+    const searchString = `${item.parent_name || ''} ${item.parent_phone || ''} ${item.children.map((c: any) => `${c.student_name || ''} ${c.school_name || ''}`).join(' ')}`.toLowerCase()
     const matchesSearch = searchString.includes(searchQuery.toLowerCase())
     const matchesStatus = filterStatus === 'All' || item.household_status === filterStatus;
     
@@ -268,6 +272,7 @@ export default function AdminCollectionsPage() {
               >
                 <option value="All">All Statuses</option>
                 <option value="Active">Active (On Track)</option>
+                <option value="Completed">Completed (Paid)</option>
                 <option value="Late">Late (Missed)</option>
                 <option value="Default">Default (Critical)</option>
               </select>
@@ -346,11 +351,13 @@ export default function AdminCollectionsPage() {
                       <td className="p-5 align-top">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border ${
                           item.household_status === 'Active' ? 'bg-green-50 text-green-700 border-green-200' : 
+                          item.household_status === 'Completed' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
                           item.household_status === 'Late' ? 'bg-orange-50 text-orange-700 border-orange-200' : 
                           item.household_status === 'Pending' ? 'bg-gray-50 text-gray-700 border-gray-200' : 
                           'bg-red-50 text-red-700 border-red-200'
                         }`}>
                           {item.household_status === 'Active' && <CheckCircle2 className="w-3 h-3" />}
+                          {item.household_status === 'Completed' && <CheckCircle2 className="w-3 h-3" />}
                           {item.household_status === 'Late' && <AlertCircle className="w-3 h-3" />}
                           {item.household_status === 'Pending' && <Clock className="w-3 h-3" />}
                           {item.household_status === 'Default' && <AlertCircle className="w-3 h-3" />}

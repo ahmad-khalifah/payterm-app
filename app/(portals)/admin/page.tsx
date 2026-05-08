@@ -71,7 +71,6 @@ export default function AdminDashboard() {
       const activeSchoolsCount = schoolsData.filter((s: any) => s.status === 'Active').length
 
       studentData.forEach((student: any) => {
-        // FIX 1: Removed the "status !== 'Completed'" restriction so full payments are included
         const studentPlan = planData.find((p: any) => p.student_id === student.id)
         if (!studentPlan) return
         
@@ -88,7 +87,6 @@ export default function AdminDashboard() {
         vault += amountPaid
         if (amountPaid > 0) revenue += serviceFee
         
-        // FIX 2: Treat 'Completed' plans as fully verified
         const isVerified = student.enrollment_status === 'Verified' || studentPlan.status === 'Active' || studentPlan.status === 'Completed'
         
         if (isVerified) {
@@ -98,11 +96,13 @@ export default function AdminDashboard() {
               deployed += baseTuition
             }
           } else {
-            // UNIVERSAL INSTALLMENT: Partial deployment with universal 10% Gap Funding math
+            // UNIVERSAL INSTALLMENT: 100% deployment with universal 40% Gap Funding math
             if (progress >= 0.59 && progress < 0.99) {
-              deployed += (baseTuition * 0.70) 
+              // FIX: School now receives 100% upfront (60% from parent + 40% from bank)
+              deployed += baseTuition 
               recoverable += (totalInvoice - amountPaid) 
-              overdraft += (baseTuition * 0.10) 
+              // FIX: Bank overdraft exposure is now 40% of base tuition
+              overdraft += (baseTuition * 0.40) 
             } else if (progress >= 0.99) {
               deployed += baseTuition 
             }
@@ -141,7 +141,6 @@ export default function AdminDashboard() {
 
     const initializePage = async () => {
       try {
-        // DEMO-SAFE FIX: Instant local storage check instead of server ping
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
         if (sessionError || !session) {
@@ -149,7 +148,6 @@ export default function AdminDashboard() {
           return
         }
 
-        // Extract the user from the active session
         const activeUser = session.user
 
         const { data: hqData } = await supabase

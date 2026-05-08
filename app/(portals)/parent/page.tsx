@@ -349,21 +349,19 @@ export default function ParentDashboard() {
             </div>
           </div>
 
-          <div className="bg-[#0a1128] rounded-2xl flex items-stretch shadow-md shadow-[#0a1128]/10 overflow-hidden">
-            <div className="flex-1 py-3 px-4 flex flex-col items-center justify-center border-r border-white/10">
-              <span className="text-[10px] text-blue-200/70 mb-0.5">Active Plans</span>
-              <span className="text-sm font-bold text-white">{enrolledCount}</span>
+          {/* REDESIGNED BUTTON SECTION */}
+          <div className="flex items-center justify-between pt-5 border-t border-gray-100">
+            <div>
+              <span className="block text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">Active Plans</span>
+              <span className="block text-xl font-black text-[#0a1128]">{enrolledCount}</span>
             </div>
             
             <Link 
               href="/parent/add-student" 
-              className="flex-1 py-3 px-4 flex flex-col items-center justify-center hover:bg-white/5 active:bg-white/10 transition-colors cursor-pointer"
+              className="bg-[#0a1128] hover:bg-blue-600 text-white px-5 py-3 rounded-xl text-sm font-bold transition-all shadow-md shadow-[#0a1128]/10 hover:shadow-blue-600/20 active:scale-95 flex items-center gap-2"
             >
-              <span className="text-[10px] text-blue-200/70 mb-0.5">New Student</span>
-              <span className="text-sm font-bold text-white flex items-center gap-1.5">
-                <UserPlus className="w-3.5 h-3.5" />
-                Add Child
-              </span>
+              <UserPlus className="w-4 h-4" />
+              Add Child
             </Link>
           </div>
         </div>
