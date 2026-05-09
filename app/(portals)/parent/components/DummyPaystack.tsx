@@ -37,8 +37,8 @@ export default function DummyPaystack({
   const handlePaymentConfirm = async () => {
     setStep('processing')
     
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 3500))
+    // REDUCED: Simulate network delay (was 3500ms, now 1000ms)
+    await new Promise(resolve => setTimeout(resolve, 1000))
 
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -83,10 +83,11 @@ export default function DummyPaystack({
 
       setStep('success')
       
+      // REDUCED: Delay before closing the success screen (was 2000ms, now 1000ms)
       setTimeout(() => {
         onSuccess(reference)
         onClose()
-      }, 2000)
+      }, 1000)
 
     } catch (err: any) {
       console.error("Payment Simulation Error:", err)
