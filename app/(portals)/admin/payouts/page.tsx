@@ -4,143 +4,55 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
 import toast from 'react-hot-toast'
-import { useRealtimeSync } from '@/lib/useRealtimeSync' 
-
+import { useRealtimeSync } from '@/lib/useRealtimeSync' // <-- The Hook
 import { 
-  Building2, Users, AlertTriangle, Wallet, 
-  CheckCircle2, AlertCircle, Banknote, ShieldAlert,
-  ArrowUpRight, XCircle
+  Banknote, ShieldCheck, X, Building2, Landmark, 
+  CheckCircle2, AlertCircle, Clock, Check, XCircle
 } from 'lucide-react'
 
-// --- UPDATED UNIVERSAL TIERED PRICING ENGINE ---
-const getFeeBreakdown = (parentTotalFee: number, isInstallment: boolean = true) => {
-  if (!parentTotalFee || parentTotalFee <= 0) return { fee: 0, base: 0 };
-  let fee = 0;
-  if (parentTotalFee <= 103500) { 
-    fee = isInstallment ? 3500 : 1500;
-  } else if (parentTotalFee <= 207500) {
-    fee = isInstallment ? 5500 : 2500;
-  } else {
-    fee = isInstallment ? 7500 : 3500;
-  }
-  return { fee, base: parentTotalFee - fee }
-}
-
-export default function AdminDashboard() {
+export default function AdminPayoutsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
-  const [isInitializing, setIsInitializing] = useState(true) 
-  const [fetchError, setFetchError] = useState<string | null>(null)
-  
-  const [stats, setStats] = useState({
-    schools: 0,
-    parents: 0,
-    escrowVault: 0,    
-    capitalDeployed: 0, 
-    recoverable: 0,    
-    revenue: 0,        
-    personalFloat: 0,  
-    overdraftExposure: 0 
-  })
+  const [isInitializing, setIsInitializing] = useState(true) // HQ Session Lock
+  const [requests, setRequests] = useState<any[]>([])
+  const [processingId, setProcessingId] = useState<string | null>(null)
+  const [isLive, setIsLive] = useState(false)
 
-  const fetchLiveStats = useCallback(async (isMounted: boolean = true, isSilent: boolean = false) => {
+  // --- DUAL-VERIFICATION MODAL STATE ---
+  const [activeRequest, setActiveRequest] = useState<any>(null)
+  const [refNumber, setRefNumber] = useState('')
+  const [confirmAmount, setConfirmAmount] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // 1. Pure Fetch Function
+  const fetchRequests = useCallback(async (isMounted: boolean = true, isSilent: boolean = false) => {
     try {
-      setFetchError(null)
       if (isMounted && !isSilent) setLoading(true)
+      const { data, error } = await supabase
+        .from('withdrawal_requests')
+        .select('*')
+        .order('created_at', { ascending: false })
 
-      const schoolsResponse = await supabase.from('partner_schools').select('*')
-      if (schoolsResponse.error) throw new Error(`Schools Table Error: ${schoolsResponse.error.message}`)
-
-      const studentsResponse = await supabase.from('students').select('*')
-      if (studentsResponse.error) throw new Error(`Students Table Error: ${studentsResponse.error.message}`)
-
-      const plansResponse = await supabase.from('active_plans').select('*')
-      if (plansResponse.error) throw new Error(`Plans Table Error: ${plansResponse.error.message}`)
-
-      const schoolsData = schoolsResponse.data || []
-      const studentData = studentsResponse.data || []
-      const planData: any[] = plansResponse.data || []
-
-      let parentCount = 0
-      let vault = 0
-      let deployed = 0
-      let recoverable = 0
-      let revenue = 0
-      let overdraft = 0
-      
-      const activeSchoolsCount = schoolsData.filter((s: any) => s.status === 'Active').length
-
-      studentData.forEach((student: any) => {
-        const studentPlan = planData.find((p: any) => p.student_id === student.id)
-        if (!studentPlan) return
-        
-        parentCount++
-
-        // SMART LIQUIDITY MATH
-        const isInstallment = studentPlan.plan_type !== 'full'
-        const totalInvoice = Number(studentPlan.total_fee) || 0
-        const { fee: serviceFee, base: baseTuition } = getFeeBreakdown(totalInvoice, isInstallment)
-        
-        const amountPaid = Number(studentPlan.amount_paid) || 0
-        const progress = totalInvoice > 0 ? (amountPaid / totalInvoice) : 0
-
-        vault += amountPaid
-        if (amountPaid > 0) revenue += serviceFee
-        
-        const isVerified = student.enrollment_status === 'Verified' || studentPlan.status === 'Active' || studentPlan.status === 'Completed'
-        
-        if (isVerified) {
-          if (!isInstallment) {
-            // FULL PAYMENT: 100% deployment, no gap funding, no partial recoverable math
-            if (progress >= 0.99) {
-              deployed += baseTuition
-            }
-          } else {
-            // UNIVERSAL INSTALLMENT: 100% deployment with universal 40% Gap Funding math
-            if (progress >= 0.59 && progress < 0.99) {
-              // FIX: School now receives 100% upfront (60% from parent + 40% from bank)
-              deployed += baseTuition 
-              recoverable += (totalInvoice - amountPaid) 
-              // FIX: Bank overdraft exposure is now 40% of base tuition
-              overdraft += (baseTuition * 0.40) 
-            } else if (progress >= 0.99) {
-              deployed += baseTuition 
-            }
-          }
-        }
-      })
-
-      const activeFloat = Math.max(0, deployed - (vault - revenue))
-
-      if (isMounted) {
-        setStats({
-          schools: activeSchoolsCount,
-          parents: parentCount,
-          escrowVault: vault,
-          capitalDeployed: deployed,
-          recoverable: recoverable,
-          revenue: revenue,
-          personalFloat: activeFloat,
-          overdraftExposure: overdraft
-        })
-        setFetchError(null)
-      }
-
-    } catch (err: any) {
-      console.error("Dashboard fetch error:", err)
-      if (isMounted && !isSilent) setFetchError(err.message || "Failed to fetch data from Supabase.")
+      if (error) throw error
+      if (data && isMounted) setRequests(data)
+    } catch (err) {
+      console.error("Fetch Error:", err)
+      if (isMounted && !isSilent) toast.error("Failed to sync payout ledger.")
     } finally {
       if (isMounted && !isSilent) setLoading(false)
     }
   }, [])
 
-  useRealtimeSync(() => fetchLiveStats(true, true))
+  // 2. THE HOOK GOES HERE: At the top level!
+  useRealtimeSync(() => fetchRequests(true, true))
 
+  // 3. Normal Component Initialization
   useEffect(() => {
-    let isMounted = true;
+    let isMounted = true
 
     const initializePage = async () => {
       try {
+        // DEMO-SAFE FIX: Instant local storage check instead of server ping
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
         if (sessionError || !session) {
@@ -150,10 +62,11 @@ export default function AdminDashboard() {
 
         const activeUser = session.user
 
+        // CRITICAL HQ VERIFICATION
         const { data: hqData } = await supabase
           .from('hq_users')
           .select('role')
-          .eq('user_email', activeUser.email as string)
+          .eq('user_email', activeUser.email as string || '')
           .maybeSingle()
 
         if (!hqData) {
@@ -163,7 +76,8 @@ export default function AdminDashboard() {
         }
 
         if (isMounted) {
-           await fetchLiveStats(isMounted, false)
+          // Initial non-silent load
+          await fetchRequests(isMounted, false)
         }
 
       } catch (err) {
@@ -174,173 +88,317 @@ export default function AdminDashboard() {
         if (isMounted) setIsInitializing(false)
       }
     }
-
+    
     initializePage()
+
+    const channel = supabase
+      .channel('admin-payouts-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawal_requests' }, () => {
+         if (isMounted) fetchRequests(isMounted, true) 
+      })
+      .subscribe((status) => {
+        if (isMounted) {
+          if (status === 'SUBSCRIBED') setIsLive(true)
+          if (status === 'CLOSED' || status === 'CHANNEL_ERROR') setIsLive(false)
+        }
+      })
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') router.push('/admin-login')
     })
 
-    return () => { 
-      isMounted = false 
+    return () => {
+      isMounted = false
+      supabase.removeChannel(channel)
       authListener.subscription.unsubscribe()
     }
-  }, [router, fetchLiveStats])
+    
+  }, [router, fetchRequests])
 
-  if (isInitializing) return <div className="p-10 text-center font-bold text-[#0a1128] tracking-widest uppercase text-sm h-screen flex items-center justify-center animate-pulse">Initializing HQ Terminal...</div>
+  const handleApproveRequest = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!activeRequest) return
 
-  if (fetchError && !isInitializing) {
-    return (
-      <div className="w-full max-w-3xl mx-auto p-10 mt-20 bg-red-50 border border-red-200 rounded-3xl shadow-sm">
-        <div className="flex items-center gap-3 mb-4">
-          <XCircle className="w-8 h-8 text-red-500" />
-          <h1 className="text-xl font-bold text-red-900">Dashboard Render Failure</h1>
+    if (Number(confirmAmount) !== Number(activeRequest.amount)) {
+      toast.error("SECURITY HALT: The amount you typed does not match the requested amount.")
+      return
+    }
+    if (!refNumber.trim()) {
+      toast.error("Bank Reference Number is required.")
+      return
+    }
+
+    setIsSubmitting(true)
+    const loadingToast = toast.loading("Authorizing disbursement...")
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { error } = await supabase.from('withdrawal_requests').update({
+          status: 'Approved', bank_reference: refNumber, approved_at: new Date().toISOString(), processed_by: user?.id || null
+        }).eq('id', activeRequest.id)
+
+      if (error) throw error
+      toast.success("Success! Withdrawal is marked as Approved.", { id: loadingToast })
+      closeModal()
+      
+      // Re-fetch after approval
+      fetchRequests(true, true)
+
+    } catch (err: any) { 
+      toast.error(`Approval Error: ${err.message}`, { id: loadingToast }) 
+    } finally { 
+      setIsSubmitting(false) 
+    }
+  }
+
+  const openModal = (request: any) => { setActiveRequest(request); setRefNumber(''); setConfirmAmount(''); }
+  const closeModal = () => { setActiveRequest(null); setRefNumber(''); setConfirmAmount(''); }
+
+  const handleReject = (id: string, schoolName: string) => {
+    toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-bold text-[#0a1128]">Reject {schoolName}'s Payout?</p>
+          <p className="text-xs text-gray-500">This will decline the withdrawal request.</p>
+          <div className="flex gap-2 mt-1">
+            <button 
+              onClick={async () => {
+                toast.dismiss(t.id)
+                setProcessingId(id)
+                const loadingToast = toast.loading(`Rejecting request...`)
+                try {
+                  const { error } = await supabase.from('withdrawal_requests').update({ status: 'Rejected' }).eq('id', id)
+                  if (error) throw error
+                  toast.success("Request rejected.", { id: loadingToast })
+                  
+                  // Re-fetch after rejection
+                  fetchRequests(true, true)
+
+                } catch (err: any) { 
+                  toast.error(`Rejection failed: ${err.message}`, { id: loadingToast }) 
+                } finally { setProcessingId(null) }
+              }}
+              className="bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-700 transition-colors"
+            >
+              Yes, Reject
+            </button>
+            <button onClick={() => toast.dismiss(t.id)} className="bg-gray-100 text-[#0a1128] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200">Cancel</button>
+          </div>
         </div>
-        <p className="text-red-700 font-mono text-sm bg-white p-4 rounded-xl border border-red-100">
-          {fetchError}
-        </p>
-        <button 
-          onClick={() => window.location.reload()}
-          className="mt-6 bg-red-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-red-700 transition-colors"
-        >
-          Retry Connection
-        </button>
-      </div>
+      ), { duration: Infinity }
     )
   }
 
-  if (loading) {
-    return <div className="p-10 text-center font-bold text-[#0a1128] tracking-widest uppercase text-sm h-screen flex items-center justify-center animate-pulse">Loading Liquidity Engine...</div>
-  }
+  const pendingRequests = requests.filter(r => r.status === 'Pending')
+  const totalPendingVolume = pendingRequests.reduce((sum, r) => sum + Number(r.amount), 0)
+  const totalPaidVolume = requests.filter(r => r.status === 'Paid' || r.status === 'Approved').reduce((sum, r) => sum + Number(r.amount), 0)
+
+  if (isInitializing || loading) return <div className="p-10 text-center font-bold text-[#0a1128] text-sm h-screen flex items-center justify-center uppercase tracking-widest animate-pulse">Initializing HQ Terminal...</div>
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in pb-20 relative">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto animate-in fade-in pb-20 relative">
       
+      {/* THE DUAL-VERIFICATION MODAL */}
+      {activeRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a1128]/80 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 border border-gray-100 relative">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full blur-3xl -mt-8 -mr-8 pointer-events-none"></div>
+            
+            <div className="p-5 border-b border-gray-100 bg-white/50 flex justify-between items-center relative z-10">
+              <h3 className="font-bold text-[#0a1128] text-sm flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-blue-600" /> Authorize Disbursement
+              </h3>
+              <button onClick={closeModal} className="text-gray-400 hover:text-red-500 transition-colors active:scale-95">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="p-5 relative z-10">
+              <div className="mb-5 bg-blue-50/50 p-4 rounded-xl border border-blue-100 text-center shadow-sm">
+                <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1">Target School</p>
+                <p className="font-bold text-[#0a1128] text-sm mb-3 flex items-center justify-center gap-1">
+                  <Building2 className="w-3.5 h-3.5 text-blue-400" /> {activeRequest.school_name}
+                </p>
+                
+                <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1">Requested Amount</p>
+                <p className="text-3xl font-black font-mono text-blue-700 tracking-tight">₦{Number(activeRequest.amount).toLocaleString()}</p>
+                
+                <div className="mt-3 pt-3 border-t border-blue-100/50 text-[11px] font-medium text-gray-600 flex flex-col items-center gap-0.5">
+                  <p className="flex items-center gap-1"><Landmark className="w-3 h-3 text-gray-400"/> {activeRequest.bank_name}</p>
+                  <p className="font-mono font-bold text-[#0a1128]">{activeRequest.account_number}</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleApproveRequest} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-[#0a1128] uppercase tracking-wide mb-1.5">1. Bank Transfer Ref</label>
+                  <input type="text" required placeholder="Paste exact ID" value={refNumber} onChange={e => setRefNumber(e.target.value)}
+                    className="w-full border border-gray-200 p-2.5 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 bg-gray-50 focus:bg-white font-mono shadow-sm transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-[#0a1128] uppercase tracking-wide mb-1.5 flex items-center justify-between">
+                    <span>2. Confirm Transferred Amount</span>
+                    {confirmAmount && Number(confirmAmount) === Number(activeRequest.amount) && (
+                      <span className="text-green-600 flex items-center gap-1"><Check className="w-3 h-3" /> Match</span>
+                    )}
+                  </label>
+                  <input type="number" required placeholder={`Type ${activeRequest.amount}`} value={confirmAmount} onChange={e => setConfirmAmount(e.target.value)}
+                    className={`w-full border p-2.5 rounded-lg text-xs outline-none focus:ring-2 font-mono shadow-sm transition-all font-bold ${
+                      confirmAmount && Number(confirmAmount) !== Number(activeRequest.amount) 
+                        ? 'border-red-300 focus:ring-red-600 bg-red-50/50 text-red-700' 
+                        : 'border-gray-200 focus:ring-blue-600 bg-gray-50 focus:bg-white text-[#0a1128]'
+                    }`}
+                  />
+                </div>
+                <div className="pt-2">
+                  <button type="submit" disabled={isSubmitting || Number(confirmAmount) !== Number(activeRequest.amount) || !refNumber.trim()}
+                    className="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white px-4 py-3 rounded-lg text-xs font-bold hover:from-blue-700 hover:to-blue-600 disabled:from-gray-300 disabled:shadow-none transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex justify-center gap-1.5"
+                  >
+                    {isSubmitting ? 'Recording Ledger...' : 'Log & Approve Transfer'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HEADER */}
       <div className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-[#0a1128] tracking-tight mb-1.5 flex items-center gap-2">
-            <Wallet className="w-6 h-6 text-blue-600" />
-            Admin Liquidity Center
-          </h1>
-          <p className="text-gray-500 font-medium text-xs">Real-time tracking of escrow balances, factoring liabilities, and float.</p>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-1.5">
+            <h1 className="text-2xl font-extrabold text-[#0a1128] tracking-tight flex items-center gap-2">
+              <Banknote className="w-6 h-6 text-blue-600" /> Withdrawal Approvals
+            </h1>
+            <div className="flex items-center gap-1 bg-green-50 px-2 py-0.5 rounded border border-green-200 w-fit shadow-sm">
+              <span className={`relative flex h-1.5 w-1.5 ${isLive ? '' : 'hidden'}`}>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
+              </span>
+              <span className="text-[8px] font-bold uppercase tracking-wider text-green-700">
+                {isLive ? 'Live Sync' : 'Connecting...'}
+              </span>
+            </div>
+          </div>
+          <p className="text-gray-500 text-xs font-medium">Review and authorize school payout requests across the platform.</p>
         </div>
       </div>
 
+      {/* METRICS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        
-        <div className="bg-gradient-to-br from-[#0a1128] to-[#15234b] p-5 md:p-6 rounded-2xl shadow-xl shadow-blue-900/10 text-white relative overflow-hidden group col-span-1 md:col-span-2">
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl pointer-events-none transition-transform group-hover:scale-110"></div>
-          <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <p className="text-[9px] sm:text-[10px] font-bold text-blue-300 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                <Banknote className="w-3.5 h-3.5" /> Total Platform Escrow
-              </p>
-              <p className="text-2xl sm:text-4xl font-black font-mono tracking-tight text-white">₦{stats.escrowVault.toLocaleString()}</p>
-            </div>
-            <div className="bg-white/10 px-3.5 py-2 rounded-xl border border-white/10 backdrop-blur-sm">
-              <p className="text-[9px] text-blue-200 uppercase tracking-widest font-bold mb-0.5">Realized Margin</p>
-              <p className="text-lg font-bold font-mono text-green-400">₦{stats.revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-blue-50/80 p-5 md:p-6 rounded-2xl border border-blue-100 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-blue-100 rounded-full blur-2xl -mt-6 -mr-6 pointer-events-none"></div>
+        <div className="bg-orange-50/50 p-5 rounded-2xl border border-orange-100 shadow-sm flex justify-between items-center transition-shadow hover:shadow-md relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-orange-100 rounded-full blur-2xl -mt-6 -mr-6 pointer-events-none"></div>
           <div className="relative z-10">
-            <h3 className="text-[9px] sm:text-[10px] font-bold text-blue-700 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-              <ShieldAlert className="w-3.5 h-3.5" /> Partner Bank Overdraft
-            </h3>
-            <div className="text-2xl font-black font-mono text-[#0a1128] tracking-tight">₦{stats.overdraftExposure.toLocaleString()}</div>
+            <p className="text-[9px] font-bold text-orange-700 uppercase tracking-widest mb-1.5">Action Required</p>
+            <p className="text-2xl font-black text-orange-800 tracking-tight">{pendingRequests.length}</p>
           </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-4 md:p-5 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
-          <div className="flex justify-between items-start mb-2">
-            <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Active Schools</p>
-            <Building2 className="w-3.5 h-3.5 text-gray-400" />
+          <div className="text-right relative z-10">
+            <p className="text-[9px] font-bold text-orange-600 uppercase tracking-widest mb-1.5">Pending Volume</p>
+            <p className="text-lg font-black text-orange-800 font-mono tracking-tight">₦{totalPendingVolume.toLocaleString()}</p>
           </div>
-          <p className="text-xl font-black text-[#0a1128] tracking-tight">{stats.schools}</p>
-        </div>
-
-        <div className="bg-white p-4 md:p-5 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
-          <div className="flex justify-between items-start mb-2">
-            <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Parent Plans</p>
-            <Users className="w-3.5 h-3.5 text-gray-400" />
-          </div>
-          <p className="text-xl font-black text-[#0a1128] tracking-tight">{stats.parents}</p>
-        </div>
-
-        <div className="bg-blue-50/50 p-4 md:p-5 rounded-2xl border border-blue-100 shadow-sm relative overflow-hidden">
-          <div className="flex justify-between items-start mb-2">
-            <p className="text-[9px] font-bold text-blue-700 uppercase tracking-widest">Capital Deployed</p>
-            <ArrowUpRight className="w-3.5 h-3.5 text-blue-500" />
-          </div>
-          <p className="text-lg md:text-xl font-black font-mono text-[#0a1128] tracking-tight">₦{stats.capitalDeployed.toLocaleString()}</p>
-        </div>
-
-        <div className="bg-orange-50/50 p-4 md:p-5 rounded-2xl border border-orange-100 shadow-sm relative overflow-hidden">
-          <div className="flex justify-between items-start mb-2">
-            <p className="text-[9px] font-bold text-orange-700 uppercase tracking-widest">Pending Receivables</p>
-            <AlertCircle className="w-3.5 h-3.5 text-orange-500" />
-          </div>
-          <p className="text-lg md:text-xl font-black font-mono text-orange-800 tracking-tight">₦{stats.recoverable.toLocaleString()}</p>
-        </div>
-      </div>
-
-      <div className={`p-5 md:p-6 rounded-2xl border shadow-sm mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-5 transition-colors ${
-        stats.personalFloat > 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'
-      }`}>
-        <div className="flex items-start gap-3.5">
-          <div className={`p-2.5 rounded-xl shrink-0 ${stats.personalFloat > 0 ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-500'}`}>
-            <AlertTriangle className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className={`text-sm font-extrabold tracking-tight mb-1 ${stats.personalFloat > 0 ? 'text-red-800' : 'text-gray-600'}`}>
-              Active Personal Float
-            </h2>
-            <p className={`text-[11px] font-medium max-w-xl leading-relaxed ${stats.personalFloat > 0 ? 'text-red-600/80' : 'text-gray-500'}`}>
-              The exact amount of personal capital currently deployed to cover the gap between parent downpayments and immediate school payouts.
-            </p>
-          </div>
-        </div>
-        <div className={`text-2xl md:text-3xl font-black font-mono tracking-tight ${stats.personalFloat > 0 ? 'text-red-600' : 'text-gray-400'}`}>
-          ₦{stats.personalFloat.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-gray-50 bg-white">
-          <h2 className="text-base font-bold text-[#0a1128]">Action Required: Pending Payouts</h2>
         </div>
         
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse whitespace-nowrap">
-            <thead className="bg-gray-50/80 border-b border-gray-100 text-[9px] text-gray-500 uppercase tracking-widest font-bold">
-              <tr>
-                <th className="p-4">Date</th>
-                <th className="p-4">School</th>
-                <th className="p-4">Amount</th>
-                <th className="p-4">Destination</th>
-                <th className="p-4 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td colSpan={5} className="p-12 text-center">
-                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-50 text-green-500 mb-3">
-                    <CheckCircle2 className="w-6 h-6" />
-                  </div>
-                  <p className="text-[#0a1128] font-bold text-sm mb-0.5">Inbox Zero</p>
-                  <p className="text-xs text-gray-500 font-medium">No pending withdrawal requests. All schools are settled.</p>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div className="bg-green-50/50 p-5 rounded-2xl border border-green-100 shadow-sm transition-shadow hover:shadow-md relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-green-100 rounded-full blur-2xl -mt-6 -mr-6 pointer-events-none"></div>
+          <div className="relative z-10">
+            <p className="text-[9px] font-bold text-green-700 uppercase tracking-widest mb-1.5">Total Disbursed Volume</p>
+            <p className="text-2xl font-black text-green-800 font-mono tracking-tight">₦{totalPaidVolume.toLocaleString()}</p>
+          </div>
+        </div>
+        
+        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-gray-50 rounded-full blur-2xl -mt-6 -mr-6 pointer-events-none"></div>
+          <div className="relative z-10">
+            <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Total Processed Logs</p>
+            <p className="text-2xl font-black text-[#0a1128] tracking-tight">{requests.length}</p>
+          </div>
         </div>
       </div>
 
+      {/* LEDGER TABLE */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden h-fit">
+        <div className="p-5 border-b border-gray-100 bg-white">
+          <h2 className="text-base font-bold text-[#0a1128]">Master Settlement Ledger</h2>
+        </div>
+        <div className="overflow-x-auto">
+          {requests.length === 0 ? (
+            <div className="p-12 text-center">
+              <p className="text-[#0a1128] font-bold text-sm mb-0.5">No requests generated yet.</p>
+              <p className="text-xs text-gray-500 font-medium">When schools request payouts, they will appear here.</p>
+            </div>
+          ) : (
+            <table className="w-full text-left text-sm border-collapse whitespace-nowrap">
+              <thead className="bg-gray-50/80 border-b border-gray-100 text-[9px] text-gray-500 uppercase tracking-widest font-bold">
+                <tr>
+                  <th className="p-4">Generated</th>
+                  <th className="p-4">Partner School</th>
+                  <th className="p-4">Amount</th>
+                  <th className="p-4">Banking Details</th>
+                  <th className="p-4">Status</th>
+                  <th className="p-4 text-right">HQ Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {requests.map((req) => (
+                  <tr key={req.id} className="hover:bg-gray-50/50 transition-colors group">
+                    <td className="p-4 text-gray-500 font-medium text-[11px]">
+                      {new Date(req.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </td>
+                    <td className="p-4 font-bold text-[#0a1128] text-xs flex items-center gap-1.5 mt-0.5">
+                      <Building2 className="w-3.5 h-3.5 text-gray-400" /> {req.school_name}
+                    </td>
+                    <td className="p-4 font-black text-[#0a1128] font-mono text-sm tracking-tight">
+                      ₦{Number(req.amount).toLocaleString()}
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-1 mb-1">
+                        <Landmark className="w-3 h-3 text-gray-400" />
+                        <p className="text-[#0a1128] font-bold text-[11px]">{req.bank_name}</p>
+                      </div>
+                      <p className="text-[10px] text-gray-500 font-mono pl-4">{req.account_number}</p>
+                    </td>
+                    <td className="p-4">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border ${
+                        req.status === 'Pending' ? 'bg-orange-50 text-orange-700 border-orange-200' : 
+                        req.status === 'Paid' || req.status === 'Approved' ? 'bg-green-50 text-green-700 border-green-200' : 
+                        'bg-red-50 text-red-700 border-red-200'
+                      }`}>
+                        {req.status === 'Pending' && <Clock className="w-2.5 h-2.5" />}
+                        {(req.status === 'Paid' || req.status === 'Approved') && <CheckCircle2 className="w-2.5 h-2.5" />}
+                        {(req.status === 'Rejected' || req.status === 'Failed') && <AlertCircle className="w-2.5 h-2.5" />}
+                        {req.status}
+                      </span>
+                    </td>
+                    <td className="p-4 text-right">
+                      {req.status === 'Pending' ? (
+                        <div className="flex justify-end gap-1.5">
+                          <button onClick={() => handleReject(req.id, req.school_name)} disabled={processingId === req.id}
+                            className="bg-white border border-red-200 text-red-600 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-red-50 transition-colors disabled:opacity-50 shadow-sm active:scale-95"
+                          > Reject </button>
+                          <button onClick={() => openModal(req)}
+                            className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-3.5 py-1.5 rounded-lg text-[10px] font-bold hover:from-blue-700 hover:to-blue-600 transition-all shadow-sm shadow-blue-500/20 active:scale-95 flex items-center gap-1"
+                          > <ShieldCheck className="w-3 h-3" /> Review </button>
+                        </div>
+                      ) : (
+                        <div className="text-right">
+                          <p className="text-green-600 font-bold text-[11px] flex items-center justify-end gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Settled
+                          </p>
+                          {req.bank_reference && (
+                            <p className="text-[9px] text-gray-400 font-mono mt-0.5 font-medium bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100 w-fit ml-auto" title={req.bank_reference}>
+                              Ref: {req.bank_reference.substring(0, 8)}...
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

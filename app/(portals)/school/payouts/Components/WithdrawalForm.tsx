@@ -105,7 +105,7 @@ export default function WithdrawalForm({ totalAvailable, targetSchool, schoolId,
           <button 
             type="submit" 
             disabled={isSubmitting || totalAvailable <= 0 || !targetSchool} 
-            className="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white px-5 py-4 rounded-xl text-sm font-bold hover:from-blue-700 hover:to-blue-600 disabled:from-blue-300 disabled:to-blue-300 transition-all shadow-lg shadow-blue-500/20 disabled:shadow-none active:scale-95 flex items-center justify-center gap-2 group"
+            className="w-full bg-[#0a1128] hover:bg-blue-600 text-white px-5 py-4 rounded-xl text-sm font-bold disabled:bg-gray-300 disabled:text-gray-500 transition-all shadow-md disabled:shadow-none active:scale-[0.98] flex items-center justify-center gap-2 group"
           >
             {isSubmitting ? 'Processing...' : 'Submit Withdrawal Request'}
             {!isSubmitting && <Send className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />}

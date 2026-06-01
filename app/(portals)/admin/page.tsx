@@ -7,24 +7,14 @@ import toast from 'react-hot-toast'
 import { useRealtimeSync } from '@/lib/useRealtimeSync' 
 
 import { 
-  Building2, Users, AlertTriangle, Wallet, 
-  CheckCircle2, AlertCircle, Banknote, ShieldAlert,
-  ArrowUpRight, XCircle
+  Building2, Users, Wallet, 
+  CheckCircle2, Banknote, XCircle,
+  Coins, Landmark, GraduationCap
 } from 'lucide-react'
 
-// --- UPDATED UNIVERSAL TIERED PRICING ENGINE ---
-const getFeeBreakdown = (parentTotalFee: number, isInstallment: boolean = true) => {
-  if (!parentTotalFee || parentTotalFee <= 0) return { fee: 0, base: 0 };
-  let fee = 0;
-  if (parentTotalFee <= 103500) { 
-    fee = isInstallment ? 3500 : 1500;
-  } else if (parentTotalFee <= 207500) {
-    fee = isInstallment ? 5500 : 2500;
-  } else {
-    fee = isInstallment ? 7500 : 3500;
-  }
-  return { fee, base: parentTotalFee - fee }
-}
+// --- FLAT FEE BaaS ENGINE ---
+const PAYTERM_REVENUE_CUT = 1000;
+const SCHOOL_COMMISSION_CUT = 500;
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -35,12 +25,10 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState({
     schools: 0,
     parents: 0,
+    activePlans: 0,
     escrowVault: 0,    
-    capitalDeployed: 0, 
-    recoverable: 0,    
-    revenue: 0,        
-    personalFloat: 0,  
-    overdraftExposure: 0 
+    paytermRevenue: 0,        
+    commissionLiability: 0 
   })
 
   const fetchLiveStats = useCallback(async (isMounted: boolean = true, isSilent: boolean = false) => {
@@ -51,7 +39,7 @@ export default function AdminDashboard() {
       const schoolsResponse = await supabase.from('partner_schools').select('*')
       if (schoolsResponse.error) throw new Error(`Schools Table Error: ${schoolsResponse.error.message}`)
 
-      const studentsResponse = await supabase.from('students').select('*')
+      const studentsResponse = await supabase.from('students').select('id, parent_id')
       if (studentsResponse.error) throw new Error(`Students Table Error: ${studentsResponse.error.message}`)
 
       const plansResponse = await supabase.from('active_plans').select('*')
@@ -61,67 +49,35 @@ export default function AdminDashboard() {
       const studentData = studentsResponse.data || []
       const planData: any[] = plansResponse.data || []
 
-      let parentCount = 0
       let vault = 0
-      let deployed = 0
-      let recoverable = 0
       let revenue = 0
-      let overdraft = 0
+      let liability = 0
+      let totalPlans = 0
       
       const activeSchoolsCount = schoolsData.filter((s: any) => s.status === 'Active').length
+      const uniqueParents = new Set(studentData.map((s: any) => s.parent_id).filter(Boolean)).size
 
-      studentData.forEach((student: any) => {
-        const studentPlan = planData.find((p: any) => p.student_id === student.id)
-        if (!studentPlan) return
-        
-        parentCount++
-
-        // SMART LIQUIDITY MATH
-        const isInstallment = studentPlan.plan_type !== 'full'
-        const totalInvoice = Number(studentPlan.total_fee) || 0
-        const { fee: serviceFee, base: baseTuition } = getFeeBreakdown(totalInvoice, isInstallment)
-        
-        const amountPaid = Number(studentPlan.amount_paid) || 0
-        const progress = totalInvoice > 0 ? (amountPaid / totalInvoice) : 0
+      planData.forEach((plan: any) => {
+        totalPlans++;
+        const amountPaid = Number(plan.amount_paid) || 0
 
         vault += amountPaid
-        if (amountPaid > 0) revenue += serviceFee
         
-        const isVerified = student.enrollment_status === 'Verified' || studentPlan.status === 'Active' || studentPlan.status === 'Completed'
-        
-        if (isVerified) {
-          if (!isInstallment) {
-            // FULL PAYMENT: 100% deployment, no gap funding, no partial recoverable math
-            if (progress >= 0.99) {
-              deployed += baseTuition
-            }
-          } else {
-            // UNIVERSAL INSTALLMENT: 100% deployment with universal 40% Gap Funding math
-            if (progress >= 0.59 && progress < 0.99) {
-              // FIX: School now receives 100% upfront (60% from parent + 40% from bank)
-              deployed += baseTuition 
-              recoverable += (totalInvoice - amountPaid) 
-              // FIX: Bank overdraft exposure is now 40% of base tuition
-              overdraft += (baseTuition * 0.40) 
-            } else if (progress >= 0.99) {
-              deployed += baseTuition 
-            }
-          }
+        // BaaS Logic: The moment a parent pays anything, the 1500 flat fee is realized.
+        if (amountPaid > 0) {
+          revenue += PAYTERM_REVENUE_CUT
+          liability += SCHOOL_COMMISSION_CUT
         }
       })
-
-      const activeFloat = Math.max(0, deployed - (vault - revenue))
 
       if (isMounted) {
         setStats({
           schools: activeSchoolsCount,
-          parents: parentCount,
+          parents: uniqueParents,
+          activePlans: totalPlans,
           escrowVault: vault,
-          capitalDeployed: deployed,
-          recoverable: recoverable,
-          revenue: revenue,
-          personalFloat: activeFloat,
-          overdraftExposure: overdraft
+          paytermRevenue: revenue,
+          commissionLiability: liability
         })
         setFetchError(null)
       }
@@ -210,114 +166,97 @@ export default function AdminDashboard() {
   }
 
   if (loading) {
-    return <div className="p-10 text-center font-bold text-[#0a1128] tracking-widest uppercase text-sm h-screen flex items-center justify-center animate-pulse">Loading Liquidity Engine...</div>
+    return <div className="p-10 text-center font-bold text-[#0a1128] tracking-widest uppercase text-sm h-screen flex items-center justify-center animate-pulse">Loading Ledger...</div>
   }
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in pb-20 relative">
+    <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in pb-20 relative bg-[#FAFAFA] min-h-screen">
       
-      <div className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-[#0a1128] tracking-tight mb-1.5 flex items-center gap-2">
-            <Wallet className="w-6 h-6 text-blue-600" />
-            Admin Liquidity Center
+            <Landmark className="w-6 h-6 text-blue-600" />
+            Admin Operations Center
           </h1>
-          <p className="text-gray-500 font-medium text-xs">Real-time tracking of escrow balances, factoring liabilities, and float.</p>
+          <p className="text-gray-500 font-medium text-xs">Real-time BaaS ledger, revenue tracking, and settlement overview.</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      {/* CORE FINANCIAL METRICS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
         
-        <div className="bg-gradient-to-br from-[#0a1128] to-[#15234b] p-5 md:p-6 rounded-2xl shadow-xl shadow-blue-900/10 text-white relative overflow-hidden group col-span-1 md:col-span-2">
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl pointer-events-none transition-transform group-hover:scale-110"></div>
-          <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <p className="text-[9px] sm:text-[10px] font-bold text-blue-300 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                <Banknote className="w-3.5 h-3.5" /> Total Platform Escrow
-              </p>
-              <p className="text-2xl sm:text-4xl font-black font-mono tracking-tight text-white">₦{stats.escrowVault.toLocaleString()}</p>
-            </div>
-            <div className="bg-white/10 px-3.5 py-2 rounded-xl border border-white/10 backdrop-blur-sm">
-              <p className="text-[9px] text-blue-200 uppercase tracking-widest font-bold mb-0.5">Realized Margin</p>
-              <p className="text-lg font-bold font-mono text-green-400">₦{stats.revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-blue-50/80 p-5 md:p-6 rounded-2xl border border-blue-100 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-blue-100 rounded-full blur-2xl -mt-6 -mr-6 pointer-events-none"></div>
-          <div className="relative z-10">
-            <h3 className="text-[9px] sm:text-[10px] font-bold text-blue-700 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-              <ShieldAlert className="w-3.5 h-3.5" /> Partner Bank Overdraft
-            </h3>
-            <div className="text-2xl font-black font-mono text-[#0a1128] tracking-tight">₦{stats.overdraftExposure.toLocaleString()}</div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-4 md:p-5 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
-          <div className="flex justify-between items-start mb-2">
-            <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Active Schools</p>
-            <Building2 className="w-3.5 h-3.5 text-gray-400" />
-          </div>
-          <p className="text-xl font-black text-[#0a1128] tracking-tight">{stats.schools}</p>
-        </div>
-
-        <div className="bg-white p-4 md:p-5 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
-          <div className="flex justify-between items-start mb-2">
-            <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Parent Plans</p>
-            <Users className="w-3.5 h-3.5 text-gray-400" />
-          </div>
-          <p className="text-xl font-black text-[#0a1128] tracking-tight">{stats.parents}</p>
-        </div>
-
-        <div className="bg-blue-50/50 p-4 md:p-5 rounded-2xl border border-blue-100 shadow-sm relative overflow-hidden">
-          <div className="flex justify-between items-start mb-2">
-            <p className="text-[9px] font-bold text-blue-700 uppercase tracking-widest">Capital Deployed</p>
-            <ArrowUpRight className="w-3.5 h-3.5 text-blue-500" />
-          </div>
-          <p className="text-lg md:text-xl font-black font-mono text-[#0a1128] tracking-tight">₦{stats.capitalDeployed.toLocaleString()}</p>
-        </div>
-
-        <div className="bg-orange-50/50 p-4 md:p-5 rounded-2xl border border-orange-100 shadow-sm relative overflow-hidden">
-          <div className="flex justify-between items-start mb-2">
-            <p className="text-[9px] font-bold text-orange-700 uppercase tracking-widest">Pending Receivables</p>
-            <AlertCircle className="w-3.5 h-3.5 text-orange-500" />
-          </div>
-          <p className="text-lg md:text-xl font-black font-mono text-orange-800 tracking-tight">₦{stats.recoverable.toLocaleString()}</p>
-        </div>
-      </div>
-
-      <div className={`p-5 md:p-6 rounded-2xl border shadow-sm mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-5 transition-colors ${
-        stats.personalFloat > 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'
-      }`}>
-        <div className="flex items-start gap-3.5">
-          <div className={`p-2.5 rounded-xl shrink-0 ${stats.personalFloat > 0 ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-500'}`}>
-            <AlertTriangle className="w-5 h-5" />
-          </div>
+        <div className="bg-[#0a1128] p-6 rounded-2xl shadow-sm text-white relative overflow-hidden md:col-span-2 flex flex-col justify-between">
           <div>
-            <h2 className={`text-sm font-extrabold tracking-tight mb-1 ${stats.personalFloat > 0 ? 'text-red-800' : 'text-gray-600'}`}>
-              Active Personal Float
-            </h2>
-            <p className={`text-[11px] font-medium max-w-xl leading-relaxed ${stats.personalFloat > 0 ? 'text-red-600/80' : 'text-gray-500'}`}>
-              The exact amount of personal capital currently deployed to cover the gap between parent downpayments and immediate school payouts.
+            <p className="text-[11px] font-bold text-blue-300 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+              <Banknote className="w-4 h-4" /> Total Virtual Escrow Processed
             </p>
+            <p className="text-4xl sm:text-5xl font-black font-mono tracking-tight text-white mb-2">₦{stats.escrowVault.toLocaleString()}</p>
+          </div>
+          <p className="text-[10px] text-gray-400 font-medium border-t border-white/10 pt-3 mt-4">
+            Gross volume securely processed across all parent virtual accounts.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-5">
+          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex-1 flex flex-col justify-center">
+            <h3 className="text-[11px] font-bold text-green-600 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+              <Wallet className="w-4 h-4" /> PayTerm Net Revenue
+            </h3>
+            <div className="text-2xl font-black font-mono text-[#0a1128] tracking-tight">₦{stats.paytermRevenue.toLocaleString()}</div>
+          </div>
+          
+          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex-1 flex flex-col justify-center">
+            <h3 className="text-[11px] font-bold text-blue-600 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+              <Coins className="w-4 h-4" /> School Commission Liability
+            </h3>
+            <div className="text-2xl font-black font-mono text-[#0a1128] tracking-tight">₦{stats.commissionLiability.toLocaleString()}</div>
           </div>
         </div>
-        <div className={`text-2xl md:text-3xl font-black font-mono tracking-tight ${stats.personalFloat > 0 ? 'text-red-600' : 'text-gray-400'}`}>
-          ₦{stats.personalFloat.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+
+      </div>
+
+      {/* SYSTEM METRICS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Active Schools</p>
+            <p className="text-2xl font-black text-[#0a1128] tracking-tight">{stats.schools}</p>
+          </div>
+          <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center border border-gray-100">
+            <Building2 className="w-5 h-5 text-gray-400" />
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Parent Households</p>
+            <p className="text-2xl font-black text-[#0a1128] tracking-tight">{stats.parents}</p>
+          </div>
+          <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center border border-gray-100">
+            <Users className="w-5 h-5 text-gray-400" />
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Active Plans</p>
+            <p className="text-2xl font-black text-[#0a1128] tracking-tight">{stats.activePlans}</p>
+          </div>
+          <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center border border-gray-100">
+            <GraduationCap className="w-5 h-5 text-gray-400" />
+          </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-gray-50 bg-white">
+      {/* WITHDRAWAL QUEUE UI */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-gray-100 bg-white">
           <h2 className="text-base font-bold text-[#0a1128]">Action Required: Pending Payouts</h2>
         </div>
         
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse whitespace-nowrap">
-            <thead className="bg-gray-50/80 border-b border-gray-100 text-[9px] text-gray-500 uppercase tracking-widest font-bold">
+            <thead className="bg-gray-50 border-b border-gray-200 text-[10px] text-gray-500 uppercase tracking-widest font-bold">
               <tr>
                 <th className="p-4">Date</th>
                 <th className="p-4">School</th>
@@ -329,7 +268,7 @@ export default function AdminDashboard() {
             <tbody>
               <tr>
                 <td colSpan={5} className="p-12 text-center">
-                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-50 text-green-500 mb-3">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-50 text-green-500 mb-3 border border-green-100">
                     <CheckCircle2 className="w-6 h-6" />
                   </div>
                   <p className="text-[#0a1128] font-bold text-sm mb-0.5">Inbox Zero</p>

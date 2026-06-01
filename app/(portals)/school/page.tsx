@@ -9,22 +9,12 @@ import { useRealtimeSync } from '@/lib/useRealtimeSync'
 import { 
   Building2, AlertCircle, CheckCircle2, Users, Search, 
   Filter, Printer, Wallet, ChevronRight, ChevronDown, ChevronUp,
-  Landmark, ShieldCheck
+  Landmark, Coins
 } from 'lucide-react'
 
-// --- UNIVERSAL PRICING ENGINE ---
-const getFeeBreakdown = (parentTotalFee: number, isInstallment: boolean = true) => {
-  if (!parentTotalFee || parentTotalFee <= 0) return { fee: 0, base: 0 };
-  let fee = 0;
-  if (parentTotalFee <= 103500) { 
-    fee = isInstallment ? 3500 : 1500;
-  } else if (parentTotalFee <= 207500) {
-    fee = isInstallment ? 5500 : 2500;
-  } else {
-    fee = isInstallment ? 7500 : 3500;
-  }
-  return { fee, base: parentTotalFee - fee }
-}
+// --- NEW FLAT FEE ENGINE ---
+const PLATFORM_FEE = 1500;
+const SCHOOL_COMMISSION = 500;
 
 export default function SchoolDashboard() {
   const router = useRouter()
@@ -36,10 +26,9 @@ export default function SchoolDashboard() {
   const [metrics, setMetrics] = useState({
     activeStudents: 0,
     totalExpected: 0,
+    tuitionCollected: 0,
     parentsOutstanding: 0,
-    payoutsCleared: 0,
-    totalBankGapDeployed: 0,
-    schoolPendingReceivables: 0 
+    commissionEarned: 0 
   })
 
   const [householdLedger, setHouseholdLedger] = useState<any[]>([])
@@ -63,7 +52,7 @@ export default function SchoolDashboard() {
         .from('students')
         .select(`
           id, full_name, student_class, enrollment_status, parent_id,
-          active_plans ( id, total_fee, amount_paid, status, next_payment_date, plan_type )
+          active_plans ( id, total_fee, amount_paid, status, next_payment_date, commission_earned )
         `)
         .eq('school_id', idToFetch) as any; 
 
@@ -71,9 +60,9 @@ export default function SchoolDashboard() {
 
       let expected = 0
       let outstandingTotal = 0
-      let cleared = 0
+      let collected = 0
       let activeCount = 0
-      let totalBankGap = 0
+      let totalCommission = 0
       let groupedHouseholds: Record<string, any> = {} 
 
       if (studentData && studentData.length > 0) {
@@ -88,36 +77,20 @@ export default function SchoolDashboard() {
           const plan = student.active_plans?.[0]
           if (!plan) return
 
-          const isInstallment = plan.plan_type !== 'full'
-          const { fee: serviceFee, base: baseTuition } = getFeeBreakdown(Number(plan.total_fee), isInstallment)
+          // BaaS Ledger Math
+          const baseTuition = Number(plan.total_fee) - PLATFORM_FEE
+          const rawAmountPaid = Number(plan.amount_paid) || 0
           
-          const rawAmountPaid = Number(plan.amount_paid)
-          const schoolAmountPaid = rawAmountPaid > 0 ? Math.max(0, rawAmountPaid - serviceFee) : 0
+          // The first 1500 goes to the platform, the rest is the school's collected tuition
+          const schoolAmountPaid = rawAmountPaid > 0 ? Math.max(0, rawAmountPaid - PLATFORM_FEE) : 0
           const parentOwes = Math.max(0, baseTuition - schoolAmountPaid)
+          const commission = Number(plan.commission_earned) || 0
           
           activeCount++
           expected += baseTuition
+          collected += schoolAmountPaid
           outstandingTotal += parentOwes
-          
-          let childCleared = 0
-          let bankGapContribution = 0
-
-          if (schoolAmountPaid > 0) {
-            const progress = schoolAmountPaid / baseTuition
-            
-            if (!isInstallment) {
-              if (progress >= 0.99) childCleared += baseTuition
-            } else {
-              // 100% Upfront Logic: If parent hits 60% threshold, school clears 100%
-              if (progress >= 0.59) {
-                bankGapContribution = baseTuition * 0.40; 
-                childCleared += baseTuition; 
-              }
-            }
-            
-            cleared += childCleared
-            totalBankGap += bankGapContribution
-          }
+          totalCommission += commission
 
           const pId = student.parent_id
           if (!pId) return
@@ -132,7 +105,6 @@ export default function SchoolDashboard() {
               children: [],
               total_outstanding: 0,
               total_paid: 0,         
-              total_cleared: 0,      
               statuses: new Set(),
               earliest_due: null,
             }
@@ -140,7 +112,6 @@ export default function SchoolDashboard() {
 
           groupedHouseholds[pId].total_outstanding += parentOwes
           groupedHouseholds[pId].total_paid += schoolAmountPaid 
-          groupedHouseholds[pId].total_cleared += childCleared
           groupedHouseholds[pId].statuses.add(plan.status)
 
           groupedHouseholds[pId].children.push({
@@ -148,9 +119,7 @@ export default function SchoolDashboard() {
             className: student.student_class,
             outstanding: parentOwes,
             amountPaid: schoolAmountPaid, 
-            baseTuition: baseTuition,
-            cleared: childCleared,
-            planType: plan.plan_type || 'installment'
+            baseTuition: baseTuition
           })
         })
 
@@ -159,6 +128,7 @@ export default function SchoolDashboard() {
           if (g.statuses.has('Default')) hStatus = 'Default'
           else if (g.statuses.has('Late')) hStatus = 'Late'
           else if (g.statuses.has('Pending Verification')) hStatus = 'Pending'
+          else if (Array.from(g.statuses).every((s: any) => s === 'Completed')) hStatus = 'Completed'
           return { ...g, household_status: hStatus }
         })
 
@@ -168,11 +138,9 @@ export default function SchoolDashboard() {
           setMetrics({
             activeStudents: activeCount,
             totalExpected: expected,
+            tuitionCollected: collected,
             parentsOutstanding: outstandingTotal,
-            payoutsCleared: cleared,
-            totalBankGapDeployed: totalBankGap,
-            // Pending receivables is the portion of expected revenue where parents haven't paid the 60% deposit yet
-            schoolPendingReceivables: Math.max(0, expected - cleared)
+            commissionEarned: totalCommission 
           })
           setHouseholdLedger(ledgerArr)
         }
@@ -253,96 +221,73 @@ export default function SchoolDashboard() {
   if (isInitializing || loading || !targetSchool) return <div className="p-10 text-center font-bold text-[#0a1128] uppercase tracking-widest h-screen flex items-center justify-center animate-pulse">Loading...</div>
 
   return (
-    <div className="w-full max-w-7xl mx-auto animate-in fade-in pb-20 relative">
+    <div className="w-full max-w-7xl mx-auto animate-in fade-in pb-20 relative bg-[#FAFAFA] min-h-screen">
       
       {/* STICKY HEADER */}
-      <div className="sticky top-0 z-40 bg-gray-50/95 backdrop-blur-md pt-4 sm:pt-6 lg:pt-10 pb-4 px-4 sm:px-6 lg:px-8 border-b border-gray-200/50 mb-6 print:hidden">
+      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md pt-6 pb-4 px-4 sm:px-6 lg:px-8 border-b border-gray-200 mb-6 print:hidden">
         <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-6 max-w-7xl mx-auto">
           <div>
-            <h1 className="text-3xl font-extrabold text-[#0a1128] tracking-tight mb-2 flex items-center gap-3">
-              <Building2 className="w-8 h-8 text-blue-600" />
+            <h1 className="text-2xl font-extrabold text-[#0a1128] tracking-tight mb-1.5 flex items-center gap-2">
+              <Building2 className="w-6 h-6 text-blue-600" />
               School Dashboard
             </h1>
             <p className="text-gray-500 font-medium text-sm flex items-center gap-2">
               Financial overview for <strong className="text-[#0a1128]">{targetSchool}</strong>
-              <span className="bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 border border-indigo-100">
-                <Users className="w-3 h-3" /> {metrics.activeStudents} Active
+              <span className="bg-gray-100 text-[#0a1128] px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 border border-gray-200 ml-2">
+                <Users className="w-3 h-3 text-gray-500" /> {metrics.activeStudents} Active
               </span>
             </p>
           </div>
-          <Link href="/school/payouts" className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-6 py-3.5 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-blue-500/30 transition-all active:scale-95 flex items-center justify-center gap-2 group">
+          <Link href="/school/payouts" className="bg-[#0a1128] text-white px-5 py-3 rounded-xl text-sm font-bold hover:bg-blue-600 transition-all active:scale-95 flex items-center justify-center gap-2">
             <Wallet className="w-4 h-4" />
             Request Withdrawal
-            <ChevronRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
           </Link>
         </div>
       </div>
   
       <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        {/* METRICS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-10 print:hidden">
+        
+        {/* METRICS - Clean, solid boxes */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 print:hidden">
           
-          <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-gray-100 rounded-full blur-2xl -mt-8 -mr-8 transition-transform group-hover:scale-110"></div>
-            <div className="flex items-center gap-3 mb-3 relative z-10">
-              <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-500 border border-gray-200">
-                <Building2 className="w-4 h-4" />
-              </div>
-              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Total Enrolled Tuition</p>
+          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+            <div className="flex justify-between items-center mb-3">
+              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Total Enrolled Tuition</p>
+              <Building2 className="w-4 h-4 text-gray-400" />
             </div>
-            <p className="text-3xl font-black text-[#0a1128] truncate relative z-10 tracking-tight">₦{metrics.totalExpected.toLocaleString()}</p>
+            <p className="text-2xl font-black text-[#0a1128] tracking-tight">₦{metrics.totalExpected.toLocaleString()}</p>
           </div>
           
-          <div className="bg-white p-6 rounded-3xl border border-blue-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full blur-2xl -mt-8 -mr-8 transition-transform group-hover:scale-110"></div>
-            <div className="flex items-center gap-3 mb-3 relative z-10">
-              <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100">
-                <ShieldCheck className="w-4 h-4" />
-              </div>
-              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Fully Funded (100%)</p>
+          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+            <div className="flex justify-between items-center mb-3">
+              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Tuition Collected</p>
+              <CheckCircle2 className="w-4 h-4 text-green-500" />
             </div>
-            <p className="text-3xl font-black text-blue-700 truncate relative z-10 tracking-tight">₦{metrics.payoutsCleared.toLocaleString()}</p>
-            {metrics.totalBankGapDeployed > 0 && (
-              <p className="text-[10px] text-gray-500 font-medium relative z-10 mt-1">
-                Includes ₦{metrics.totalBankGapDeployed.toLocaleString()} Bank Advance
-              </p>
-            )}
+            <p className="text-2xl font-black text-[#0a1128] tracking-tight">₦{metrics.tuitionCollected.toLocaleString()}</p>
           </div>
 
-          <div className="bg-white p-6 rounded-3xl border border-orange-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-orange-50 rounded-full blur-2xl -mt-8 -mr-8 transition-transform group-hover:scale-110"></div>
-            <div className="flex items-center gap-3 mb-3 relative z-10">
-              <div className="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 border border-orange-100">
-                <Landmark className="w-4 h-4" />
-              </div>
-              <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest">Pending Activation</p>
+          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+            <div className="flex justify-between items-center mb-3">
+              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Parent Arrears</p>
+              <AlertCircle className="w-4 h-4 text-orange-500" />
             </div>
-            <p className="text-3xl font-black text-orange-600 truncate relative z-10 tracking-tight">₦{metrics.schoolPendingReceivables.toLocaleString()}</p>
-            <p className="text-[10px] text-gray-500 font-medium relative z-10 mt-1">
-              Awaiting 60% parent deposit to unlock funds.
-            </p>
+            <p className="text-2xl font-black text-[#0a1128] tracking-tight">₦{metrics.parentsOutstanding.toLocaleString()}</p>
           </div>
 
-          <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-red-50 rounded-full blur-2xl -mt-8 -mr-8 transition-transform group-hover:scale-110"></div>
-            <div className="flex items-center gap-3 mb-3 relative z-10">
-              <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center text-red-600 border border-red-100">
-                <AlertCircle className="w-4 h-4" />
-              </div>
-              <p className="text-[10px] font-bold text-red-600 uppercase tracking-widest">Parent Arrears (To Bank)</p>
+          <div className="bg-[#0a1128] p-5 rounded-2xl border border-[#15234b] shadow-sm text-white">
+            <div className="flex justify-between items-center mb-3">
+              <p className="text-[11px] font-bold text-blue-300 uppercase tracking-widest">Admin Commission</p>
+              <Coins className="w-4 h-4 text-blue-400" />
             </div>
-            <p className="text-3xl font-black text-red-600 truncate relative z-10 tracking-tight">₦{metrics.parentsOutstanding.toLocaleString()}</p>
-            <p className="text-[10px] text-gray-500 font-medium relative z-10 mt-1">
-              Outstanding 40% owed to PayTerm/Bank.
-            </p>
+            <p className="text-2xl font-black tracking-tight">₦{metrics.commissionEarned.toLocaleString()}</p>
           </div>
 
         </div>
     
-        {/* PROFESSIONAL LEDGER TABLE */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden print:border-none print:shadow-none">
+        {/* SOLID LEDGER TABLE */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden print:border-none print:shadow-none mb-10">
           
-          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-5 md:px-6 md:py-4 border-b border-gray-200 print:border-b-2 print:border-gray-900 print:mb-4">
+          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-5 border-b border-gray-200 print:border-b-2 print:border-gray-900 print:mb-4">
             <div>
               <h2 className="text-base font-bold text-gray-900 print:text-xl">Master Payment Ledger</h2>
               <p className="text-xs text-gray-500 mt-0.5 font-medium print:hidden">Household-level transparency for active parent payments.</p>
@@ -359,7 +304,7 @@ export default function SchoolDashboard() {
                   placeholder="Search records..." 
                   value={searchQuery} 
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-gray-400 focus:bg-white text-xs text-gray-900 transition-all"
+                  className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-600 focus:bg-white text-xs text-[#0a1128] transition-all"
                 />
               </div>
               
@@ -370,10 +315,11 @@ export default function SchoolDashboard() {
                 <select 
                   value={filterStatus} 
                   onChange={e => setFilterStatus(e.target.value)}
-                  className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-gray-400 focus:bg-white text-xs font-medium text-gray-900 transition-all appearance-none cursor-pointer"
+                  className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-600 focus:bg-white text-xs font-medium text-[#0a1128] transition-all appearance-none cursor-pointer"
                 >
                   <option value="All">All Health</option>
                   <option value="Active">Active</option>
+                  <option value="Completed">Completed</option>
                   <option value="Late">Late</option>
                   <option value="Default">Default</option>
                 </select>
@@ -381,7 +327,7 @@ export default function SchoolDashboard() {
               
               <button 
                 onClick={() => window.print()}
-                className="w-full sm:w-auto bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-xs font-medium hover:bg-gray-50 transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                className="w-full sm:w-auto bg-white border border-gray-200 text-[#0a1128] px-4 py-2 rounded-lg text-xs font-bold hover:bg-gray-50 transition-all active:scale-95 flex items-center justify-center gap-1.5"
               >
                 <Printer className="w-3.5 h-3.5" />
                 Print
@@ -393,18 +339,17 @@ export default function SchoolDashboard() {
             <table className="w-full text-left border-collapse whitespace-nowrap">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wider font-semibold print:bg-gray-100 print:text-black">
-                  <th className="px-6 py-3 font-medium">Household / Contact</th>
-                  <th className="px-6 py-3 font-medium">Child Breakdowns</th>
-                  <th className="px-6 py-3 font-medium text-right text-gray-400 print:text-black">Bank Arrears</th>
-                  <th className="px-6 py-3 font-medium text-right text-gray-400 print:text-black">Total Paid</th>
-                  <th className="px-6 py-3 font-medium text-right text-gray-400 print:text-black">Cleared to School</th>
+                  <th className="px-5 py-3 font-bold">Household / Contact</th>
+                  <th className="px-5 py-3 font-bold">Child Breakdowns</th>
+                  <th className="px-5 py-3 font-bold text-right text-gray-400 print:text-black">Total Arrears</th>
+                  <th className="px-5 py-3 font-bold text-right text-gray-400 print:text-black">Tuition Collected</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 print:divide-gray-300">
                 {filteredLedger.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-16 text-center">
-                      <p className="text-sm font-medium text-gray-900">No ledger entries found.</p>
+                    <td colSpan={4} className="py-12 text-center">
+                      <p className="text-sm font-bold text-[#0a1128]">No ledger entries found.</p>
                       <p className="text-xs text-gray-500 mt-1">Adjust your search or filter settings.</p>
                     </td>
                   </tr>
@@ -418,13 +363,14 @@ export default function SchoolDashboard() {
                       <tr key={item.parent_id} className="hover:bg-gray-50/50 transition-colors">
                         
                         {/* HOUSEHOLD COLUMN */}
-                        <td className="px-6 py-4 align-top">
+                        <td className="px-5 py-4 align-top">
                           <div className="flex flex-col gap-0.5">
-                            <span className="font-semibold text-gray-900 text-sm">{item.parent_name}</span>
+                            <span className="font-bold text-[#0a1128] text-sm">{item.parent_name}</span>
                             <span className="text-xs text-gray-500 font-mono tracking-tight">{item.parent_phone}</span>
                             <div className="mt-1.5 flex items-center gap-1.5">
                               <span className={`w-1.5 h-1.5 rounded-full ${
-                                item.household_status === 'Active' ? 'bg-green-500' : 
+                                item.household_status === 'Active' ? 'bg-blue-500' : 
+                                item.household_status === 'Completed' ? 'bg-green-500' :
                                 item.household_status === 'Late' ? 'bg-orange-500' : 'bg-red-500'
                               }`}></span>
                               <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{item.household_status}</span>
@@ -433,19 +379,13 @@ export default function SchoolDashboard() {
                         </td>
                         
                         {/* SUB-LEDGER CHILD COLUMN */}
-                        <td className="px-6 py-4 align-top min-w-[340px]">
+                        <td className="px-5 py-4 align-top min-w-[300px]">
                           <div className="flex flex-col gap-2">
                             {visibleChildren.map((child: any, idx: number) => (
                               <div key={idx} className="flex flex-col gap-1 pb-2 border-b border-gray-50 last:border-0 last:pb-0">
-                                
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-semibold text-gray-900">
-                                    {child.student_name} <span className="font-normal text-gray-500">({child.className})</span>
-                                  </span>
-                                  <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md ${child.planType === 'full' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
-                                    {child.planType}
-                                  </span>
-                                </div>
+                                <span className="text-xs font-bold text-[#0a1128]">
+                                  {child.student_name} <span className="font-medium text-gray-500">({child.className})</span>
+                                </span>
                                 
                                 <div className="flex items-center gap-2.5 text-[11px] font-mono tracking-tight text-gray-500">
                                   <span>Fee: ₦{child.baseTuition.toLocaleString()}</span>
@@ -469,12 +409,12 @@ export default function SchoolDashboard() {
                             {item.children.length > 1 && (
                               <button 
                                 onClick={() => toggleHousehold(item.parent_id)}
-                                className="flex items-center gap-1 text-[11px] font-medium text-gray-500 hover:text-gray-900 transition-colors pt-1 print:hidden"
+                                className="flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-[#0a1128] transition-colors pt-1 print:hidden"
                               >
                                 {isExpanded ? (
-                                  <><ChevronUp className="w-3.5 h-3.5" /> Collapse details</>
+                                  <><ChevronUp className="w-3 h-3" /> Collapse details</>
                                 ) : (
-                                  <><ChevronDown className="w-3.5 h-3.5" /> {hiddenCount} more student{hiddenCount !== 1 ? 's' : ''}</>
+                                  <><ChevronDown className="w-3 h-3" /> {hiddenCount} more student{hiddenCount !== 1 ? 's' : ''}</>
                                 )}
                               </button>
                             )}
@@ -482,16 +422,12 @@ export default function SchoolDashboard() {
                         </td>
                         
                         {/* RIGHT ALIGNED FINANCIAL COLUMNS */}
-                        <td className={`px-6 py-4 text-right font-mono text-sm tracking-tight align-top ${item.total_outstanding > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
+                        <td className={`px-5 py-4 text-right font-mono text-sm tracking-tight align-top ${item.total_outstanding > 0 ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
                           {item.total_outstanding > 0 ? `₦${item.total_outstanding.toLocaleString()}` : '-'}
                         </td>
                         
-                        <td className="px-6 py-4 text-right font-mono text-gray-900 text-sm tracking-tight align-top">
+                        <td className="px-5 py-4 text-right font-mono text-[#0a1128] font-bold text-sm tracking-tight align-top">
                           ₦{item.total_paid.toLocaleString()}
-                        </td>
-
-                        <td className="px-6 py-4 text-right font-mono text-green-700 font-bold text-sm tracking-tight align-top">
-                          ₦{item.total_cleared.toLocaleString()}
                         </td>
                       </tr>
                     )

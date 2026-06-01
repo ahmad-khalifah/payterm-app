@@ -6,32 +6,23 @@ import Link from 'next/link'
 import { supabase } from '../../../lib/supabase'
 import toast from 'react-hot-toast'
 import { useRealtimeSync } from '@/lib/useRealtimeSync'
-import { UserPlus, ChevronRight, AlertCircle, Wallet, CheckCircle2, Bell } from 'lucide-react'
+import { UserPlus, ChevronRight, AlertCircle, Wallet, CheckCircle2, Bell, Landmark } from 'lucide-react'
 
-import DummyPaystack from './components/DummyPaystack'
 import StudentCard from './components/StudentCard'
 import RenewalModal from './components/RenewalModal'
 import ReceiptModal from './components/ReceiptModal'
 
-// --- UNIVERSAL TIERED PRICING ENGINE ---
-export const getFeeBreakdown = (parentTotalFee: number, isInstallment: boolean = true) => {
-  let fee = 0;
-  
-  if (parentTotalFee <= 103500) { 
-    fee = isInstallment ? 3500 : 1500;
-  } else if (parentTotalFee <= 207500) {
-    fee = isInstallment ? 5500 : 2500;
-  } else {
-    fee = isInstallment ? 7500 : 3500;
-  }
+// --- NEW FLAT FEE ENGINE ---
+const PLATFORM_FEE = 1500;
 
-  return { fee, base: parentTotalFee - fee }
+export const getFeeBreakdown = (parentTotalFee: number, isInstallment: boolean = true) => {
+  return { fee: PLATFORM_FEE, base: parentTotalFee - PLATFORM_FEE }
 }
 
 export default function ParentDashboard() {
   const router = useRouter()
   const [isInitializing, setIsInitializing] = useState(true)
-  const [parentName, setParentName] = useState<string | null>(null)
+  const [parentData, setParentData] = useState<any>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [childrenData, setChildrenData] = useState<any[]>([])
   
@@ -43,15 +34,10 @@ export default function ParentDashboard() {
     plan: any; child: any; isFirstPayment: boolean;
   } | null>(null)
 
-  const [paystackConfig, setPaystackConfig] = useState<{
-    isOpen: boolean; amount: number; email: string; studentName: string;
-    studentClass: string; planId: string; studentId: string; isMidTerm: boolean;
-    mode: 'installment' | 'full';
-  } | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
 
   const fetchDashboardData = useCallback(async () => {
     try {
-      // DEMO-SAFE FIX: Instant local storage check
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
       if (sessionError || !session) {
@@ -63,8 +49,24 @@ export default function ParentDashboard() {
       const activeUserId = session.user.id
       setCurrentUserId(activeUserId)
       
-      const { data: parentProfile } = await supabase.from('parents').select('full_name').eq('id', activeUserId).single()
-      if (parentProfile) setParentName(parentProfile.full_name)
+      // Fetch Parent Profile & Wallet
+      const { data } = await supabase.from('parents').select('*').eq('id', activeUserId).single()
+      const profile = data as any;
+      
+      // Demo fallback: Auto-generate dummy virtual account if missing
+      if (profile && !profile.virtual_account_number) {
+        profile.virtual_account_number = `80${Math.floor(10000000 + Math.random() * 90000000)}`
+        profile.virtual_account_name = `PayTerm / ${profile.full_name}`
+        profile.wallet_balance = 500000 // Demo starting balance
+        
+        await supabase.from('parents').update({
+          virtual_account_number: profile.virtual_account_number,
+          virtual_account_name: profile.virtual_account_name,
+          wallet_balance: profile.wallet_balance
+        } as any).eq('id', activeUserId)
+      }
+      
+      setParentData(profile)
 
       const { data: students, error: studentError } = await supabase
         .from('students')
@@ -129,66 +131,58 @@ export default function ParentDashboard() {
     setBreakdownConfig({ plan, child, isFirstPayment })
   }
 
-  const triggerPayment = (amountToPay: number) => {
-    if (!breakdownConfig) return
-    const { plan, child, isFirstPayment } = breakdownConfig
-    const dummyEmail = parentName ? `${parentName.replace(/\s+/g, '').toLowerCase()}@email.com` : 'parent@email.com'
-    const planMode = plan.plan_type === 'full' ? 'full' : 'installment'
+  const handleWalletPayment = async (amountToPay: number) => {
+    if (!breakdownConfig || !parentData) return
+    
+    if (parentData.wallet_balance < amountToPay) {
+      toast.error("Insufficient wallet balance. Please transfer funds to your virtual account.")
+      return
+    }
 
-    setPaystackConfig({
-      isOpen: true, amount: amountToPay, email: dummyEmail, studentName: child.full_name,
-      studentClass: child.student_class, planId: plan.id, studentId: child.id, isMidTerm: !isFirstPayment,
-      mode: planMode
-    })
-    setBreakdownConfig(null) 
-  }
+    setIsProcessing(true)
+    const toastId = toast.loading("Processing payment from wallet...")
 
-  const handlePaymentSuccess = async (reference: string) => {
     try {
-      const isFullPayment = paystackConfig?.mode === 'full';
-      const currentPlanId = paystackConfig?.planId;
-      
-      if (!currentPlanId) throw new Error("Missing Plan ID for payment update");
-      
-      const currentPlan = childrenData.flatMap(c => c.active_plans).find(p => p.id === currentPlanId);
+      const { plan, child } = breakdownConfig
+      const reference = `PT-${Math.random().toString(36).substring(2, 10).toUpperCase()}`
 
-      if (isFullPayment && currentPlan) {
-        // Adjust the total fee in the DB to reflect the cheaper full-payment service fee
-        const { base } = getFeeBreakdown(Number(currentPlan.total_fee), true);
-        const { fee: fullFee } = getFeeBreakdown(Number(currentPlan.total_fee), false);
-        const adjustedTotal = base + fullFee;
+      // 1. Deduct from Parent Wallet
+      const newBalance = parentData.wallet_balance - amountToPay
+      const { error: walletError } = await supabase.from('parents').update({ 
+        wallet_balance: newBalance 
+      } as any).eq('id', parentData.id)
+      if (walletError) throw walletError
 
-        await supabase.from('active_plans').update({ 
-          amount_paid: adjustedTotal,
-          total_fee: adjustedTotal, 
-          status: 'Completed',
-          plan_type: 'full'
-        } as any).eq('id', currentPlanId);
-      } else {
-        const updateData: any = { 
-          plan_type: 'installment',
-          amount_paid: paystackConfig?.isMidTerm ? currentPlan?.total_fee : paystackConfig?.amount 
-        };
-        if (paystackConfig?.isMidTerm) {
-          updateData.mid_term_cleared = true;
-          updateData.status = 'Completed';
-        }
-        
-        await supabase.from('active_plans').update(updateData).eq('id', currentPlanId);
-      }
-      
-      await supabase.from('notifications').insert({
-        parent_id: currentUserId,
-        title: 'Payment Successful',
-        message: `Your payment of ₦${paystackConfig?.amount.toLocaleString()} for ${paystackConfig?.studentName} was received successfully. Receipt: ${reference}`
-      })
+      // 2. Log Payment History using the exact outstanding amount paid
+      const { error: txError } = await supabase.from('payment_history').insert({
+        parent_id: parentData.id,
+        plan_id: plan.id,
+        student_id: child.id,
+        amount: amountToPay, 
+        receipt_number: reference,
+        status: 'Cleared'
+      } as any)
+      if (txError) throw txError
 
-      toast.success(`Payment confirmed! Receipt No: ${reference}`) 
-      setPaystackConfig(null)
+      // 3. Update Plan
+      const newAmountPaid = Number(plan.amount_paid) + amountToPay
+      const isComplete = newAmountPaid >= Number(plan.total_fee)
+
+      await supabase.from('active_plans').update({ 
+        amount_paid: newAmountPaid,
+        status: isComplete ? 'Completed' : 'Active',
+        mid_term_cleared: isComplete ? true : plan.mid_term_cleared,
+        commission_earned: 500
+      } as any).eq('id', plan.id)
+
+      toast.success(`Payment successful! Receipt No: ${reference}`, { id: toastId }) 
+      setBreakdownConfig(null)
       fetchDashboardData() 
-    } catch (err) {
+    } catch (err: any) {
       console.error("Update error:", err)
-      toast.error("Payment recorded, but there was an issue updating your dashboard.")
+      toast.error("Payment failed. Please try again.", { id: toastId })
+    } finally {
+      setIsProcessing(false)
     }
   }
 
@@ -205,99 +199,68 @@ export default function ParentDashboard() {
   return (
     <div className="w-full max-w-6xl mx-auto animate-in fade-in pb-24 relative bg-[#f8fafc] min-h-screen">
       
-      {/* DYNAMIC PAYMENT BREAKDOWN MODAL */}
+      {/* WALLET PAYMENT MODAL */}
       {breakdownConfig && (() => {
-        const planMode = breakdownConfig.plan.plan_type === 'full' ? 'full' : 'installment'
-        const isInstallment = planMode === 'installment'
+        const totalFee = Number(breakdownConfig.plan.total_fee)
+        const amountPaid = Number(breakdownConfig.plan.amount_paid)
+        const outstandingBalance = totalFee - amountPaid
+        
+        const activeFee = breakdownConfig.isFirstPayment ? PLATFORM_FEE : 0
+        const tuitionPortion = outstandingBalance - activeFee
 
-        const { fee: activeFee, base: baseTuition } = getFeeBreakdown(Number(breakdownConfig.plan.total_fee), isInstallment)
-        
-        const depositAmount = isInstallment ? (baseTuition * 0.60) : baseTuition
-        const balanceAmount = isInstallment ? (baseTuition * 0.40) : 0
-        
-        const totalDueToday = breakdownConfig.isFirstPayment 
-          ? depositAmount + activeFee
-          : balanceAmount
+        const hasSufficientFunds = parentData?.wallet_balance >= outstandingBalance
 
         return (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0a1128]/40 backdrop-blur-md p-4 transition-all">
-            <div className="bg-white/95 backdrop-blur-xl rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl shadow-blue-900/20 border border-white/50 animate-in zoom-in-95 mx-auto">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0a1128]/40 backdrop-blur-sm p-4 transition-all">
+            <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 mx-auto">
               
-              <div className="bg-gradient-to-r from-gray-50 to-white border-b border-gray-100 p-6 flex items-center gap-4">
-                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center shrink-0">
-                  <Wallet className="w-6 h-6" />
+              <div className="bg-gray-50 border-b border-gray-100 p-5 flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shrink-0">
+                  <Wallet className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-[#0a1128] tracking-tight leading-tight">Payment Confirmation</h2>
-                  <p className="text-xs text-gray-500 mt-0.5">{breakdownConfig.child.full_name} • {breakdownConfig.child.student_class}</p>
+                  <h2 className="text-base font-bold text-[#0a1128] tracking-tight leading-tight">Pay from Wallet</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">{breakdownConfig.child.full_name}</p>
                 </div>
               </div>
               
-              <div className="p-6 space-y-4">
-                {breakdownConfig.isFirstPayment ? (
-                  <>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${isInstallment ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>
-                        {isInstallment ? 'Installment Plan' : 'Full Payment Plan'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm pb-3 border-b border-gray-100 mt-2">
-                      <span className="text-gray-500 font-medium">School Tuition</span>
-                      <span className="font-bold text-[#0a1128]">₦{baseTuition.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm pb-3 border-b border-gray-100">
-                      <span className="text-gray-500 font-medium">{isInstallment ? 'Initial Deposit (60%)' : 'Full Tuition (100%)'}</span>
-                      <span className="font-bold text-[#0a1128]">₦{depositAmount.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-500 font-medium">Platform Fee</span>
-                      <span className="font-bold text-[#0a1128]">₦{activeFee.toLocaleString()}</span>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-orange-50 text-orange-700">
-                        Final Installment
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm pb-3 border-b border-gray-100 mt-2">
-                      <span className="text-gray-500 font-medium">Final Balance (40%)</span>
-                      <span className="font-bold text-[#0a1128]">₦{balanceAmount.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-500 font-medium">Platform Fee</span>
-                      <span className="font-bold text-gray-400 italic">Paid upfront</span>
-                    </div>
-                  </>
+              <div className="p-5 space-y-3">
+                <div className="flex justify-between items-center text-sm pb-2 border-b border-gray-100 mt-1">
+                  <span className="text-gray-500 font-medium">Outstanding Tuition</span>
+                  <span className="font-bold text-[#0a1128]">₦{tuitionPortion.toLocaleString()}</span>
+                </div>
+                {breakdownConfig.isFirstPayment && (
+                  <div className="flex justify-between items-center text-sm pb-2 border-b border-gray-100">
+                    <span className="text-gray-500 font-medium">Platform Service Fee</span>
+                    <span className="font-bold text-[#0a1128]">₦{PLATFORM_FEE.toLocaleString()}</span>
+                  </div>
                 )}
                 
-                <div className="bg-blue-50/50 rounded-2xl p-4 mt-2 flex justify-between items-center border border-blue-100/50">
-                  <span className="text-sm font-bold text-blue-900 tracking-wide">Total Due Today</span>
-                  <span className="text-2xl font-black text-blue-600">₦{totalDueToday.toLocaleString()}</span>
+                <div className="bg-blue-50 rounded-xl p-3 flex justify-between items-center">
+                  <span className="text-sm font-bold text-blue-900 tracking-wide">Total Due</span>
+                  <span className="text-xl font-black text-blue-600">₦{outstandingBalance.toLocaleString()}</span>
+                </div>
+
+                <div className={`p-3 rounded-lg border flex items-center justify-between text-xs font-medium ${hasSufficientFunds ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                  <span>Wallet Balance: ₦{parentData?.wallet_balance?.toLocaleString()}</span>
+                  {!hasSufficientFunds && <span className="font-bold uppercase tracking-wider">Top Up Required</span>}
                 </div>
               </div>
 
-              <div className="p-4 flex gap-3 border-t border-gray-100">
-                <button onClick={() => setBreakdownConfig(null)} className="flex-1 py-3.5 text-sm font-bold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition-all active:scale-95">Cancel</button>
-                <button onClick={() => triggerPayment(totalDueToday)} className="flex-[2] py-3.5 text-sm font-bold text-white bg-gradient-to-r from-blue-600 to-blue-500 rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 transition-all active:scale-95 flex items-center justify-center gap-2 group">
-                  Proceed to Pay
-                  <ChevronRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+              <div className="p-4 flex gap-3 border-t border-gray-100 bg-gray-50">
+                <button onClick={() => setBreakdownConfig(null)} disabled={isProcessing} className="flex-1 py-3 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 transition-all active:scale-95 disabled:opacity-50">Cancel</button>
+                <button 
+                  onClick={() => handleWalletPayment(outstandingBalance)} 
+                  disabled={!hasSufficientFunds || isProcessing}
+                  className="flex-[2] py-3 text-sm font-bold text-white bg-[#0a1128] rounded-xl hover:bg-blue-600 transition-all active:scale-95 disabled:bg-gray-300 flex items-center justify-center gap-2"
+                >
+                  {isProcessing ? 'Processing...' : 'Authorize Payment'}
                 </button>
               </div>
             </div>
           </div>
         )
       })()}
-
-      {/* EXTERNALLY MANAGED MODALS */}
-      {paystackConfig && (
-        <DummyPaystack
-          isOpen={paystackConfig.isOpen} onClose={() => setPaystackConfig(null)} onSuccess={handlePaymentSuccess}
-          amount={paystackConfig.amount} email={paystackConfig.email} studentName={paystackConfig.studentName}
-          studentClass={paystackConfig.studentClass} planId={paystackConfig.planId} studentId={paystackConfig.studentId}
-        />
-      )}
 
       {renewConfig && (
         <RenewalModal 
@@ -319,13 +282,13 @@ export default function ParentDashboard() {
       <header className="sticky top-0 z-40 bg-[#f8fafc]/95 backdrop-blur-md pt-4 sm:pt-6 lg:pt-8 pb-4 border-b border-gray-200/50 px-4 sm:px-6 lg:px-10 transition-all">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-sm font-extrabold border border-blue-100 shrink-0">
-              {parentName ? parentName.charAt(0).toUpperCase() : 'P'}
+            <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-extrabold border border-blue-200 shrink-0">
+              {parentData?.full_name ? parentData.full_name.charAt(0).toUpperCase() : 'P'}
             </div>
             <div className="flex flex-col">
-              <span className="text-[10px] font-medium text-gray-400">Welcome back</span>
+              <span className="text-[10px] font-medium text-gray-500">Welcome back</span>
               <h1 className="text-sm font-extrabold text-[#0a1128] leading-none mt-0.5">
-                {parentName ? parentName.split(' ')[0] : 'Parent'}
+                {parentData?.full_name ? parentData.full_name.split(' ')[0] : 'Parent'}
               </h1>
             </div>
           </div>
@@ -336,50 +299,59 @@ export default function ParentDashboard() {
         </div>
       </header>
 
-      {/* --- SCROLLING CONTENT --- */}
       <div className="px-4 sm:px-6 lg:px-10 pt-6">
 
-        {/* THE COMPACT WHITE WIDGET CARD */}
-        <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-5 sm:p-6 mb-8 transition-all">
-          
-          <div className="mb-5">
-            <p className="text-[11px] font-medium text-gray-500 mb-1">Outstanding Balance</p>
-            <div className="text-3xl sm:text-4xl font-black text-[#0a1128] tracking-tight">
-              ₦{totalOutstanding.toLocaleString()}
+        {/* --- COMPACT SOLID WALLET WIDGET --- */}
+        <div className="bg-[#0a1128] rounded-2xl shadow-sm p-5 mb-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-white">
+          <div>
+            <p className="text-[10px] font-bold text-blue-300 uppercase tracking-widest mb-1">Family Wallet</p>
+            <div className="text-3xl font-black font-mono tracking-tight mb-2">
+              ₦{parentData?.wallet_balance?.toLocaleString() || '0'}
+            </div>
+            <div className="flex items-center gap-2 text-xs text-gray-300 font-medium bg-white/10 px-3 py-1.5 rounded-lg w-fit border border-white/10">
+              <Landmark className="w-3.5 h-3.5" />
+              <span>{parentData?.virtual_account_bank || 'PayTerm MFB'}</span>
+              <span>•</span>
+              <span className="font-mono text-white tracking-wide">{parentData?.virtual_account_number || 'Pending'}</span>
             </div>
           </div>
 
-          {/* REDESIGNED BUTTON SECTION */}
-          <div className="flex items-center justify-between pt-5 border-t border-gray-100">
-            <div>
-              <span className="block text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">Active Plans</span>
-              <span className="block text-xl font-black text-[#0a1128]">{enrolledCount}</span>
+          <Link 
+            href="/parent/add-student" 
+            className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl text-sm font-bold transition-all active:scale-95 flex items-center justify-center gap-2"
+          >
+            <UserPlus className="w-4 h-4" />
+            Add Child
+          </Link>
+        </div>
+
+        {/* OUTSTANDING BALANCE & ACTIVE PLANS COMPACT WIDGET */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-8 flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-medium text-gray-500 mb-1">Outstanding Balance</p>
+            <div className="text-2xl font-black text-[#0a1128] tracking-tight">
+              ₦{totalOutstanding.toLocaleString()}
             </div>
-            
-            <Link 
-              href="/parent/add-student" 
-              className="bg-[#0a1128] hover:bg-blue-600 text-white px-5 py-3 rounded-xl text-sm font-bold transition-all shadow-md shadow-[#0a1128]/10 hover:shadow-blue-600/20 active:scale-95 flex items-center gap-2"
-            >
-              <UserPlus className="w-4 h-4" />
-              Add Child
-            </Link>
+          </div>
+          <div className="text-right">
+            <span className="block text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">Active Plans</span>
+            <span className="block text-xl font-black text-[#0a1128]">{enrolledCount}</span>
           </div>
         </div>
 
         {/* STUDENTS GRID */}
         <div className={childrenData.length === 0 ? "" : "grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-6"}>
           {childrenData.length === 0 ? (
-            <div className="bg-white rounded-3xl border border-dashed border-gray-300 p-12 text-center flex flex-col items-center justify-center shadow-sm relative overflow-hidden">
-              <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] mix-blend-overlay"></div>
-              <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6 border border-gray-100">
-                <AlertCircle className="w-10 h-10 text-gray-400" />
+            <div className="bg-white rounded-2xl border border-dashed border-gray-300 p-10 text-center flex flex-col items-center justify-center shadow-sm">
+              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4 border border-gray-100">
+                <AlertCircle className="w-8 h-8 text-gray-400" />
               </div>
-              <h3 className="text-xl font-extrabold text-[#0a1128] mb-2 relative z-10">No Students Linked</h3>
-              <p className="text-gray-500 text-sm font-medium mb-8 max-w-sm mx-auto relative z-10 leading-relaxed">Connect your child to a verified partner school to instantly generate your flexible payment plan.</p>
+              <h3 className="text-lg font-extrabold text-[#0a1128] mb-1">No Students Linked</h3>
+              <p className="text-gray-500 text-sm font-medium mb-6 max-w-sm mx-auto">Connect your child to a verified partner school to manage fee payments.</p>
               
-              <Link href="/parent/add-student" className="group relative w-full sm:w-auto flex items-center justify-center gap-3 px-8 py-4 bg-[#0a1128] text-white rounded-full font-bold text-sm transition-all shadow-lg shadow-blue-900/20 hover:shadow-blue-900/40 active:scale-95 z-10">
-                <span className="tracking-wide">Register Your Child</span>
-                <ChevronRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+              <Link href="/parent/add-student" className="flex items-center justify-center gap-2 px-6 py-3 bg-[#0a1128] hover:bg-blue-600 text-white rounded-xl font-bold text-sm transition-all active:scale-95">
+                <span>Register Your Child</span>
+                <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
           ) : (

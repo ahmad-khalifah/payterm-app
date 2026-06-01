@@ -98,7 +98,7 @@ export default function StudentCard({ child, expandedHistoryId, onToggleHistory,
           {/* NEW: Plan Type Badge */}
           <div className="flex items-center gap-1 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-100 text-[10px] sm:text-xs font-bold text-purple-700 uppercase tracking-wider">
             <PieChart className="w-3 h-3 text-purple-400" />
-            {plan.plan_type === 'full' ? 'Full Payment' : 'Installment'}
+            {plan.plan_type === 'full' ? 'Full Payment' : 'Full Payment Plan'}
           </div>
         </div>
       </div>

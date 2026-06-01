@@ -10,14 +10,15 @@ import { useRealtimeSync } from '@/lib/useRealtimeSync'
 
 import { ArrowLeft, User, Building2, CreditCard, AlertCircle, ChevronDown } from 'lucide-react'
 
+// --- FLAT FEE CONSTANTS ---
+const PLATFORM_FEE = 1500;
+const SCHOOL_COMMISSION = 500;
+
 export default function AddStudentPage() {
   const router = useRouter()
   const [loadingSchools, setLoadingSchools] = useState(true)
   const [loadingClasses, setLoadingClasses] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  // NEW: State to track what the parent clicks in the Preview Box
-  const [paymentMode, setPaymentMode] = useState<'installment' | 'full'>('installment')
 
   const [schools, setSchools] = useState<any[]>([])
   const [availableClasses, setAvailableClasses] = useState<any[]>([])
@@ -129,14 +130,17 @@ export default function AddStudentPage() {
 
       const uniqueCode = `PT-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
       
-      // FIX: Explicitly write the chosen paymentMode to the database
+      // Calculate final ledger total
+      const baseTuition = Number(selectedFeeConfig.parent_total_fee) || 0;
+      const finalLedgerTotal = baseTuition + PLATFORM_FEE;
+
       const { error: planError } = await supabase
         .from('active_plans')
         .insert({
           student_id: studentData.id,
           parent_id: user.id,
           school_id: selectedSchool.id,
-          total_fee: selectedFeeConfig.parent_total_fee,
+          total_fee: finalLedgerTotal, 
           amount_paid: 0,
           next_payment_date: selectedFeeConfig.mid_term_date || null,
           status: 'Active', 
@@ -145,13 +149,14 @@ export default function AddStudentPage() {
           payterm_advance: 0,
           academic_session: form.session, 
           term: form.term,
-          plan_type: paymentMode // <-- Saves 'full' or 'installment'        
+          plan_type: 'installment', // Default standard plan
+          commission_earned: SCHOOL_COMMISSION // Flat 500
         } as any) 
 
       if (planError) throw planError
 
       toast.success("Student profile saved!")
-      toast.success("Redirecting to dashboard to complete payment...")
+      toast.success("Redirecting to dashboard...")
       
       setTimeout(() => {
         router.push('/parent') 
@@ -328,12 +333,8 @@ export default function AddStudentPage() {
                   </div>
                 </div>
                 
-                {/* DYNAMIC PREVIEW BOX: Passes state and update function down */}
-                <PaymentPreviewBox 
-                  activeClassData={activeClassData} 
-                  paymentMode={paymentMode} 
-                  onModeChange={setPaymentMode} 
-                />
+                {/* DYNAMIC PREVIEW BOX: Only requires activeClassData now */}
+                <PaymentPreviewBox activeClassData={activeClassData} />
               </div>
             )}
           </div>
@@ -343,9 +344,9 @@ export default function AddStudentPage() {
             <button 
               type="submit" 
               disabled={isSubmitting || !form.schoolName || !form.session || !form.term || !form.className} 
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white py-4 rounded-xl font-bold text-base transition-all disabled:from-gray-200 disabled:to-gray-200 disabled:text-gray-400 flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg shadow-blue-500/20 disabled:shadow-none"
+              className="w-full bg-[#0a1128] hover:bg-blue-600 text-white py-4 rounded-xl font-bold text-base transition-all disabled:bg-gray-300 disabled:text-gray-400 flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg shadow-[#0a1128]/20 disabled:shadow-none"
             >
-              {isSubmitting ? 'Adding Child Profile...' : `Save ${paymentMode === 'full' ? 'Full Payment' : 'Installment'} Plan & Proceed`}
+              {isSubmitting ? 'Generating Ledger...' : 'Save Child & Complete Setup'}
             </button>
           </div>
         </form>

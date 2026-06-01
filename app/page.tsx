@@ -46,19 +46,19 @@ export default function LandingPage() {
         transition={{ duration: 0.8, ease: customEase }}
         className="fixed top-0 w-full z-50 px-4 sm:px-6 pt-6"
       >
-        <nav className="max-w-6xl mx-auto bg-white/80 backdrop-blur-xl border border-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-full px-6 sm:px-8 h-16 flex items-center justify-between">
+        <nav className="max-w-6xl mx-auto bg-white/95 backdrop-blur-xl border border-gray-200 shadow-sm rounded-full px-6 sm:px-8 h-16 flex items-center justify-between">
           <Link href="/" className="text-2xl font-black tracking-tight">
             <span className="text-[#0a1128]">Pay</span><span className="text-blue-600">Term</span>
           </Link>
           
-          <div className="hidden md:flex items-center gap-8 bg-gray-50/50 px-6 py-1.5 rounded-full border border-gray-100">
+          <div className="hidden md:flex items-center gap-8 bg-gray-50 px-6 py-1.5 rounded-full border border-gray-100">
             <Link href="#how-it-works" className="text-[13px] font-bold text-gray-500 hover:text-[#0a1128] transition-colors uppercase tracking-wider">How it Works</Link>
             <Link href="/school-login" className="text-[13px] font-bold text-gray-500 hover:text-[#0a1128] transition-colors uppercase tracking-wider">For Schools</Link>
           </div>
 
           <div className="flex items-center gap-4">
             <Link href="/parent-login" className="text-sm font-bold text-[#0a1128] hover:text-blue-600 transition-colors hidden sm:block">Log In</Link>
-            <Link href="/parent-login" className="bg-[#0a1128] text-white px-6 py-2 rounded-full text-sm font-bold hover:bg-blue-600 transition-all shadow-md hover:shadow-xl hover:shadow-blue-900/20 active:scale-95">
+            <Link href="/parent-login" className="bg-[#0a1128] text-white px-6 py-2 rounded-full text-sm font-bold hover:bg-blue-600 transition-all shadow-md active:scale-95">
               Get Started
             </Link>
           </div>
@@ -70,8 +70,8 @@ export default function LandingPage() {
         <section className="relative pt-40 pb-20 md:pt-52 md:pb-32 overflow-hidden">
           
           {/* Aesthetic Mesh Gradients */}
-          <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-400/20 rounded-full blur-[120px] pointer-events-none mix-blend-multiply" />
-          <div className="absolute top-[20%] right-[-10%] w-[40%] h-[60%] bg-indigo-400/10 rounded-full blur-[120px] pointer-events-none mix-blend-multiply" />
+          <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-400/10 rounded-full blur-[120px] pointer-events-none mix-blend-multiply" />
+          <div className="absolute top-[20%] right-[-10%] w-[40%] h-[60%] bg-blue-200/20 rounded-full blur-[120px] pointer-events-none mix-blend-multiply" />
           
           <motion.div 
             variants={staggerContainer}
@@ -82,21 +82,21 @@ export default function LandingPage() {
             {/* Premium Badge */}
             <motion.div variants={fadeInUp} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-xs font-bold uppercase tracking-widest mb-8 shadow-sm">
               <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-              Nigeria's #1 Fee Financing Platform
+              Nigeria's #1 Education Wallet
             </motion.div>
 
             <motion.h1 variants={fadeInUp} className="text-5xl sm:text-6xl md:text-[5rem] font-black text-[#0a1128] tracking-tighter leading-[1.05] mb-6">
-              Pay school fees in <br className="hidden md:block" />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-600">easy monthly chunks.</span>
+              Manage school fees with <br className="hidden md:block" />
+              <span className="text-blue-600">your Family Wallet.</span>
             </motion.h1>
             
             <motion.p variants={fadeInUp} className="text-lg md:text-xl text-gray-500 font-medium max-w-2xl mx-auto mb-12 leading-relaxed">
-              Zero interest. Maximum flexibility. Join thousands of parents using PayTerm to manage education expenses without the financial stress.
+              Instantly generate a dedicated virtual bank account. Fund it at your own pace, track tuition balances, and clear school fees with a single tap.
             </motion.p>
 
             <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-lg mx-auto">
-              <Link href="/parent-login" className="w-full sm:w-auto px-8 py-4 bg-[#0a1128] text-white rounded-full font-bold text-base md:text-lg hover:bg-blue-600 shadow-xl shadow-[#0a1128]/10 transition-all active:scale-95 flex items-center justify-center gap-2">
-                Parent Setup
+              <Link href="/parent-login" className="w-full sm:w-auto px-8 py-4 bg-[#0a1128] text-white rounded-full font-bold text-base md:text-lg hover:bg-blue-600 shadow-lg shadow-[#0a1128]/10 transition-all active:scale-95 flex items-center justify-center gap-2">
+                Create Free Wallet
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
               </Link>
               <Link href="/school-login" className="w-full sm:w-auto px-8 py-4 bg-white text-[#0a1128] border border-gray-200 rounded-full font-bold text-base md:text-lg hover:border-gray-300 hover:bg-gray-50 transition-all active:scale-95 shadow-sm">
@@ -107,10 +107,8 @@ export default function LandingPage() {
             {/* FLOATING GLASS STATS */}
             <motion.div 
               variants={staggerContainer}
-              className="mt-24 mx-auto max-w-4xl bg-white/60 backdrop-blur-2xl border border-white rounded-[2rem] p-8 md:p-12 shadow-[0_8px_30px_rgb(0,0,0,0.04)] grid grid-cols-2 md:grid-cols-3 gap-8 md:gap-12 relative overflow-hidden"
+              className="mt-24 mx-auto max-w-4xl bg-white border border-gray-100 rounded-[2rem] p-8 md:p-12 shadow-sm grid grid-cols-2 md:grid-cols-3 gap-8 md:gap-12 relative overflow-hidden"
             >
-              <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
-              
               <motion.div variants={scaleIn} className="relative z-10">
                 <h4 className="text-4xl md:text-5xl font-black text-[#0a1128] tracking-tight">50+</h4>
                 <p className="text-[11px] md:text-xs text-gray-500 font-bold uppercase tracking-widest mt-2">Partner Schools</p>
@@ -121,7 +119,7 @@ export default function LandingPage() {
               </motion.div>
               <motion.div variants={scaleIn} className="col-span-2 md:col-span-1 relative z-10">
                 <h4 className="text-4xl md:text-5xl font-black text-blue-600 tracking-tight">₦2B+</h4>
-                <p className="text-[11px] md:text-xs text-blue-600/70 font-bold uppercase tracking-widest mt-2">Fees Financed</p>
+                <p className="text-[11px] md:text-xs text-blue-600/70 font-bold uppercase tracking-widest mt-2">Tuition Processed</p>
               </motion.div>
             </motion.div>
           </motion.div>
@@ -145,39 +143,38 @@ export default function LandingPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
               
               {/* Step 1 */}
-              <motion.div variants={fadeInUp} className="bg-[#FAFAFA] p-10 rounded-[2.5rem] border border-gray-100 relative overflow-hidden group hover:shadow-[0_20px_40px_rgb(0,0,0,0.04)] hover:-translate-y-2 transition-all duration-500">
+              <motion.div variants={fadeInUp} className="bg-[#FAFAFA] p-10 rounded-[2.5rem] border border-gray-100 relative overflow-hidden group hover:shadow-sm hover:-translate-y-1 transition-all duration-500">
                 <div className="absolute -right-8 -bottom-12 text-[12rem] font-black text-gray-100 group-hover:text-blue-50 transition-colors duration-500 select-none pointer-events-none leading-none">1</div>
                 <div className="relative z-10">
-                  <div className="w-16 h-16 bg-white shadow-sm border border-gray-100 text-[#0a1128] rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500">
+                  <div className="w-16 h-16 bg-white shadow-sm border border-gray-100 text-[#0a1128] rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-500">
                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
                   </div>
-                  <h3 className="text-2xl font-extrabold text-[#0a1128] mb-4 tracking-tight">Select School</h3>
+                  <h3 className="text-2xl font-extrabold text-[#0a1128] mb-4 tracking-tight">Link Your Child</h3>
                   <p className="text-gray-500 leading-relaxed font-medium text-lg">Find your child's institution from our verified nationwide network. Instantly sync their details and active term fees.</p>
                 </div>
               </motion.div>
 
               {/* Step 2 */}
-              <motion.div variants={fadeInUp} className="bg-[#FAFAFA] p-10 rounded-[2.5rem] border border-gray-100 relative overflow-hidden group hover:shadow-[0_20px_40px_rgb(0,0,0,0.04)] hover:-translate-y-2 transition-all duration-500">
+              <motion.div variants={fadeInUp} className="bg-[#FAFAFA] p-10 rounded-[2.5rem] border border-gray-100 relative overflow-hidden group hover:shadow-sm hover:-translate-y-1 transition-all duration-500">
                 <div className="absolute -right-8 -bottom-12 text-[12rem] font-black text-gray-100 group-hover:text-blue-50 transition-colors duration-500 select-none pointer-events-none leading-none">2</div>
                 <div className="relative z-10">
-                  <div className="w-16 h-16 bg-white shadow-sm border border-gray-100 text-[#0a1128] rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500">
-                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                  <div className="w-16 h-16 bg-white shadow-sm border border-gray-100 text-[#0a1128] rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-500">
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" /></svg>
                   </div>
-                  <h3 className="text-2xl font-extrabold text-[#0a1128] mb-4 tracking-tight">Choose a Plan</h3>
-                  <p className="text-gray-500 leading-relaxed font-medium text-lg">Opt to pay in full or slice the fee into a 60% initial deposit with the remainder due at mid-term.</p>
+                  <h3 className="text-2xl font-extrabold text-[#0a1128] mb-4 tracking-tight">Get a Virtual Account</h3>
+                  <p className="text-gray-500 leading-relaxed font-medium text-lg">We instantly generate a dedicated bank account for your family. No more physical bank tellers or confusing school accounts.</p>
                 </div>
               </motion.div>
 
               {/* Step 3 */}
-              <motion.div variants={fadeInUp} className="bg-[#0a1128] p-10 rounded-[2.5rem] border border-[#15234b] relative overflow-hidden group hover:shadow-[0_20px_40px_rgba(10,17,40,0.2)] hover:-translate-y-2 transition-all duration-500">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="absolute -right-8 -bottom-12 text-[12rem] font-black text-white/5 group-hover:text-white/10 transition-colors duration-500 select-none pointer-events-none leading-none">3</div>
+              <motion.div variants={fadeInUp} className="bg-[#0a1128] p-10 rounded-[2.5rem] border border-[#15234b] relative overflow-hidden group hover:shadow-lg hover:shadow-[#0a1128]/20 hover:-translate-y-1 transition-all duration-500 text-white">
+                <div className="absolute -right-8 -bottom-12 text-[12rem] font-black text-white/5 group-hover:text-blue-500/10 transition-colors duration-500 select-none pointer-events-none leading-none">3</div>
                 <div className="relative z-10">
-                  <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 shadow-lg shadow-blue-900/50">
-                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08-.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-500 shadow-md">
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </div>
-                  <h3 className="text-2xl font-extrabold text-white mb-4 tracking-tight">Pay & Clear</h3>
-                  <p className="text-blue-100/70 leading-relaxed font-medium text-lg">Make your payment securely. We instantly disburse funds to the school and generate your digital clearance.</p>
+                  <h3 className="text-2xl font-extrabold mb-4 tracking-tight">Top-up & Clear</h3>
+                  <p className="text-gray-400 leading-relaxed font-medium text-lg">Transfer funds to your wallet at your own pace. Once funded, authorize the tuition payment with one click to get cleared.</p>
                 </div>
               </motion.div>
 
@@ -201,14 +198,14 @@ export default function LandingPage() {
 
           <div className="relative z-10">
             <motion.h2 variants={fadeInUp} className="text-4xl md:text-6xl font-black text-white tracking-tighter mb-6">
-              Ready to ease the burden?
+              Take control of your child's fees.
             </motion.h2>
             <motion.p variants={fadeInUp} className="text-blue-100 font-medium text-lg md:text-xl max-w-2xl mx-auto mb-12">
-              Set up your account in 60 seconds and give your child the uninterrupted education they deserve.
+              Set up your family wallet in 60 seconds and give your child the uninterrupted education they deserve.
             </motion.p>
             <motion.div variants={scaleIn}>
               <Link href="/parent-login" className="inline-flex items-center gap-3 bg-white text-[#0a1128] px-10 py-5 rounded-full font-black text-lg hover:bg-gray-50 transition-all shadow-[0_8px_30px_rgb(0,0,0,0.12)] active:scale-95">
-                Create Parent Account
+                Create Parent Wallet
                 <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
               </Link>
             </motion.div>
@@ -225,7 +222,7 @@ export default function LandingPage() {
                 <span className="text-white">Pay</span><span className="text-blue-500">Term</span>
               </Link>
               <p className="text-gray-400 text-sm font-medium leading-relaxed mb-6 pr-4">
-                Making quality education accessible through flexible, zero-interest payment plans for Nigerian families.
+                Making quality education accessible through secure, dedicated virtual accounts for Nigerian families.
               </p>
             </div>
             <div>
