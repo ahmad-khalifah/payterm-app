@@ -19,28 +19,19 @@ const staggerContainer = {
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 40 },
-  visible: { 
-    opacity: 1, 
-    y: 0, 
-    transition: { duration: 0.8, ease: customEase } 
-  },
-}
-
-const scaleIn = {
-  hidden: { opacity: 0, scale: 0.95 },
-  visible: { 
-    opacity: 1, 
-    scale: 1, 
-    transition: { duration: 0.8, ease: customEase } 
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.8, ease: customEase }
   },
 }
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[#FAFAFA] font-sans selection:bg-blue-100 selection:text-blue-900 flex flex-col overflow-x-hidden">
-      
+
       {/* FLOATING PILL NAVIGATION */}
-      <motion.div 
+      <motion.div
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.8, ease: customEase }}
@@ -50,7 +41,7 @@ export default function LandingPage() {
           <Link href="/" className="text-2xl font-black tracking-tight">
             <span className="text-[#0a1128]">Pay</span><span className="text-blue-600">Term</span>
           </Link>
-          
+
           <div className="hidden md:flex items-center gap-8 bg-gray-50 px-6 py-1.5 rounded-full border border-gray-100">
             <Link href="#how-it-works" className="text-[13px] font-bold text-gray-500 hover:text-[#0a1128] transition-colors uppercase tracking-wider">How it Works</Link>
             <Link href="/school-login" className="text-[13px] font-bold text-gray-500 hover:text-[#0a1128] transition-colors uppercase tracking-wider">For Schools</Link>
@@ -68,28 +59,22 @@ export default function LandingPage() {
       <main className="flex-grow">
         {/* HERO SECTION */}
         <section className="relative pt-40 pb-20 md:pt-52 md:pb-32 overflow-hidden">
-          
+
           {/* Aesthetic Mesh Gradients */}
           <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-400/10 rounded-full blur-[120px] pointer-events-none mix-blend-multiply" />
           <div className="absolute top-[20%] right-[-10%] w-[40%] h-[60%] bg-blue-200/20 rounded-full blur-[120px] pointer-events-none mix-blend-multiply" />
-          
-          <motion.div 
+
+          <motion.div
             variants={staggerContainer}
             initial="hidden"
             animate="visible"
             className="max-w-5xl mx-auto px-6 relative z-10 text-center"
           >
-            {/* Premium Badge */}
-            <motion.div variants={fadeInUp} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-xs font-bold uppercase tracking-widest mb-8 shadow-sm">
-              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-              Nigeria's #1 Education Wallet
-            </motion.div>
-
             <motion.h1 variants={fadeInUp} className="text-5xl sm:text-6xl md:text-[5rem] font-black text-[#0a1128] tracking-tighter leading-[1.05] mb-6">
               Manage school fees with <br className="hidden md:block" />
               <span className="text-blue-600">your Family Wallet.</span>
             </motion.h1>
-            
+
             <motion.p variants={fadeInUp} className="text-lg md:text-xl text-gray-500 font-medium max-w-2xl mx-auto mb-12 leading-relaxed">
               Instantly generate a dedicated virtual bank account. Fund it at your own pace, track tuition balances, and clear school fees with a single tap.
             </motion.p>
@@ -103,31 +88,12 @@ export default function LandingPage() {
                 Partner as a School
               </Link>
             </motion.div>
-
-            {/* FLOATING GLASS STATS */}
-            <motion.div 
-              variants={staggerContainer}
-              className="mt-24 mx-auto max-w-4xl bg-white border border-gray-100 rounded-[2rem] p-8 md:p-12 shadow-sm grid grid-cols-2 md:grid-cols-3 gap-8 md:gap-12 relative overflow-hidden"
-            >
-              <motion.div variants={scaleIn} className="relative z-10">
-                <h4 className="text-4xl md:text-5xl font-black text-[#0a1128] tracking-tight">50+</h4>
-                <p className="text-[11px] md:text-xs text-gray-500 font-bold uppercase tracking-widest mt-2">Partner Schools</p>
-              </motion.div>
-              <motion.div variants={scaleIn} className="relative z-10">
-                <h4 className="text-4xl md:text-5xl font-black text-[#0a1128] tracking-tight">10k+</h4>
-                <p className="text-[11px] md:text-xs text-gray-500 font-bold uppercase tracking-widest mt-2">Active Students</p>
-              </motion.div>
-              <motion.div variants={scaleIn} className="col-span-2 md:col-span-1 relative z-10">
-                <h4 className="text-4xl md:text-5xl font-black text-blue-600 tracking-tight">₦2B+</h4>
-                <p className="text-[11px] md:text-xs text-blue-600/70 font-bold uppercase tracking-widest mt-2">Tuition Processed</p>
-              </motion.div>
-            </motion.div>
           </motion.div>
         </section>
 
         {/* HOW IT WORKS SECTION */}
-        <motion.section 
-          id="how-it-works" 
+        <motion.section
+          id="how-it-works"
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: "-100px" }}
@@ -141,7 +107,7 @@ export default function LandingPage() {
             </motion.div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
-              
+
               {/* Step 1 */}
               <motion.div variants={fadeInUp} className="bg-[#FAFAFA] p-10 rounded-[2.5rem] border border-gray-100 relative overflow-hidden group hover:shadow-sm hover:-translate-y-1 transition-all duration-500">
                 <div className="absolute -right-8 -bottom-12 text-[12rem] font-black text-gray-100 group-hover:text-blue-50 transition-colors duration-500 select-none pointer-events-none leading-none">1</div>
@@ -183,7 +149,7 @@ export default function LandingPage() {
         </motion.section>
 
         {/* BOTTOM CTA */}
-        <motion.section 
+        <motion.section
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true }}
@@ -203,7 +169,7 @@ export default function LandingPage() {
             <motion.p variants={fadeInUp} className="text-blue-100 font-medium text-lg md:text-xl max-w-2xl mx-auto mb-12">
               Set up your family wallet in 60 seconds and give your child the uninterrupted education they deserve.
             </motion.p>
-            <motion.div variants={scaleIn}>
+            <motion.div variants={fadeInUp}>
               <Link href="/parent-login" className="inline-flex items-center gap-3 bg-white text-[#0a1128] px-10 py-5 rounded-full font-black text-lg hover:bg-gray-50 transition-all shadow-[0_8px_30px_rgb(0,0,0,0.12)] active:scale-95">
                 Create Parent Wallet
                 <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
