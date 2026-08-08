@@ -58,7 +58,7 @@ export default function LandingPage() {
 
       <main className="flex-grow">
         {/* HERO SECTION */}
-        <section className="relative pt-40 pb-20 md:pt-52 md:pb-32 overflow-hidden">
+        <section className="relative pt-40 pb-16 md:pt-52 md:pb-24 overflow-hidden">
 
           {/* Aesthetic Mesh Gradients */}
           <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-400/10 rounded-full blur-[120px] pointer-events-none mix-blend-multiply" />
@@ -79,7 +79,7 @@ export default function LandingPage() {
               Instantly generate a dedicated virtual bank account. Fund it at your own pace, track tuition balances, and clear school fees with a single tap.
             </motion.p>
 
-            <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-lg mx-auto">
+            <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-lg mx-auto mb-12">
               <Link href="/parent-login" className="w-full sm:w-auto px-8 py-4 bg-[#0a1128] text-white rounded-full font-bold text-base md:text-lg hover:bg-blue-600 shadow-lg shadow-[#0a1128]/10 transition-all active:scale-95 flex items-center justify-center gap-2">
                 Create Free Wallet
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
@@ -91,6 +91,53 @@ export default function LandingPage() {
           </motion.div>
         </section>
 
+        {/* DEMO VIDEO BANNER */}
+        <motion.section
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-50px" }}
+          variants={staggerContainer}
+          className="relative z-20 pb-16 pt-0 px-6"
+        >
+          <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-center gap-4">
+            
+            {/* Parent Demo Link */}
+            <motion.a
+              variants={fadeInUp}
+              href="https://youtube.com/shorts/dLDbuFKdROY?si=N6d31jDMl9KmflrN"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-4 bg-white border border-gray-200 p-4 rounded-2xl shadow-sm hover:shadow-md hover:border-blue-200 transition-all w-full sm:w-1/2 group"
+            >
+              <div className="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                <svg className="w-5 h-5 ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+              <div>
+                <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">For Parents</p>
+                <p className="text-[#0a1128] font-bold text-sm">Watch Portal Demo</p>
+              </div>
+            </motion.a>
+
+            {/* School Demo Link */}
+            <motion.a
+              variants={fadeInUp}
+              href="https://youtube.com/shorts/-HYDUycnaqA?si=r4SNUqLnLqgozGCe"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-4 bg-white border border-gray-200 p-4 rounded-2xl shadow-sm hover:shadow-md hover:border-blue-200 transition-all w-full sm:w-1/2 group"
+            >
+              <div className="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                <svg className="w-5 h-5 ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+              <div>
+                <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">For Schools</p>
+                <p className="text-[#0a1128] font-bold text-sm">Watch Admin Demo</p>
+              </div>
+            </motion.a>
+
+          </div>
+        </motion.section>
+
         {/* HOW IT WORKS SECTION */}
         <motion.section
           id="how-it-works"
@@ -98,7 +145,7 @@ export default function LandingPage() {
           whileInView="visible"
           viewport={{ once: true, margin: "-100px" }}
           variants={staggerContainer}
-          className="py-24 md:py-32 bg-white relative"
+          className="py-24 md:py-32 bg-white relative border-t border-gray-100"
         >
           <div className="max-w-7xl mx-auto px-6">
             <motion.div variants={fadeInUp} className="text-center mb-16 md:mb-24">
