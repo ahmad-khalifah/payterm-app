@@ -104,7 +104,7 @@ export default function LandingPage() {
             {/* Parent Demo Link */}
             <motion.a
               variants={fadeInUp}
-              href="https://youtube.com/shorts/dLDbuFKdROY?si=N6d31jDMl9KmflrN"
+              href="https://youtube.com/shorts/-HYDUycnaqA?si=ZlybvSZa6XuXKIlQ"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-4 bg-white border border-gray-200 p-4 rounded-2xl shadow-sm hover:shadow-md hover:border-blue-200 transition-all w-full sm:w-1/2 group"
