@@ -310,7 +310,7 @@ export default function ParentDashboard() {
             </div>
             <div className="flex items-center gap-2 text-xs text-gray-300 font-medium bg-white/10 px-3 py-1.5 rounded-lg w-fit border border-white/10">
               <Landmark className="w-3.5 h-3.5" />
-              <span>{parentData?.virtual_account_bank || 'PayTerm MFB'}</span>
+              <span>{parentData?.virtual_account_bank || 'PayTerm Wallet'}</span>
               <span>•</span>
               <span className="font-mono text-white tracking-wide">{parentData?.virtual_account_number || 'Pending'}</span>
             </div>
