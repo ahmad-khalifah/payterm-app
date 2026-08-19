@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { motion } from 'framer-motion'
 
 // --- PREMIUM ANIMATION VARIANTS ---
@@ -76,8 +77,8 @@ export default function LandingPage() {
         <section className="relative pt-40 pb-20 md:pt-48 md:pb-32 overflow-hidden min-h-[90vh] flex items-center">
           
           {/* Subtle Background Elements */}
-          <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-blue-50 rounded-full blur-[100px] opacity-70 -z-10 translate-x-1/3 -translate-y-1/4" />
-          <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-indigo-50 rounded-full blur-[100px] opacity-70 -z-10 -translate-x-1/3 translate-y-1/4" />
+          <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-blue-50 rounded-full blur-[100px] opacity-70 -z-10 translate-x-1/3 -translate-y-1/4 transform-gpu pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-indigo-50 rounded-full blur-[100px] opacity-70 -z-10 -translate-x-1/3 translate-y-1/4 transform-gpu pointer-events-none" />
 
           <div className="max-w-7xl mx-auto px-6 w-full relative z-10">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-8 items-center">
@@ -130,22 +131,27 @@ export default function LandingPage() {
                 className="relative flex justify-center items-center h-full mt-8 lg:mt-0"
               >
                 {/* Glow behind phone */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-gradient-to-tr from-blue-400/20 to-purple-400/20 blur-3xl rounded-full" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-gradient-to-tr from-blue-400/20 to-purple-400/20 blur-3xl rounded-full transform-gpu pointer-events-none" />
                 
-                <motion.div variants={floatAnimation} initial="hidden" animate="visible" className="relative z-10 drop-shadow-2xl">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img 
-                    src="/payterm-phone-transparent.png" 
-                    alt="PayTerm Parent Dashboard showing wallet balance and active payment plans" 
-                    className="w-full max-w-[320px] sm:max-w-[380px] lg:max-w-[420px] object-contain rotate-[-2deg]"
-                  />
+                <motion.div variants={floatAnimation} initial="hidden" animate="visible" className="relative z-10 drop-shadow-2xl will-change-transform transform-gpu">
+                  
+                  <div className="w-full max-w-[320px] sm:max-w-[380px] lg:max-w-[420px] rotate-[-2deg]">
+                    <Image 
+                      src="/payterm-phone-transparent.png" 
+                      alt="PayTerm Parent Dashboard showing wallet balance" 
+                      width={420}
+                      height={850}
+                      priority
+                      className="w-full h-auto object-contain"
+                    />
+                  </div>
                   
                   {/* Floating Notification Badge */}
                   <motion.div 
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 1.5, duration: 0.8 }}
-                    className="absolute right-0 lg:-right-12 top-24 lg:top-32 bg-white px-4 py-3 rounded-2xl shadow-xl border border-gray-100 flex items-center gap-3 scale-90 lg:scale-100 origin-right"
+                    className="absolute right-0 lg:-right-12 top-24 lg:top-32 bg-white px-4 py-3 rounded-2xl shadow-xl border border-gray-100 flex items-center gap-3 scale-90 lg:scale-100 origin-right will-change-transform"
                   >
                     <div className="w-8 h-8 bg-green-100 text-green-600 rounded-full flex items-center justify-center shrink-0">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
