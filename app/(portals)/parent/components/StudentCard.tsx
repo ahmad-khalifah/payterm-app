@@ -95,7 +95,7 @@ export default function StudentCard({ child, expandedHistoryId, onToggleHistory,
             <GraduationCap className="w-3 h-3 text-gray-400" />
             {child.student_class}
           </div>
-          {/* NEW: Plan Type Badge */}
+          {/* Plan Type Badge */}
           <div className="flex items-center gap-1 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-100 text-[10px] sm:text-xs font-bold text-purple-700 uppercase tracking-wider">
             <PieChart className="w-3 h-3 text-purple-400" />
             {plan.plan_type === 'full' ? 'Full Payment' : 'Full Payment Plan'}
@@ -192,21 +192,22 @@ export default function StudentCard({ child, expandedHistoryId, onToggleHistory,
             ) : (
               <ul className="divide-y divide-gray-50">
                 {plan.payment_history.map((tx: any) => (
-                  <li key={tx.id} className="p-3 flex items-center justify-between hover:bg-gray-50 rounded-xl transition-colors">
-                    <div className="flex items-center gap-3">
+                  <li key={tx.id} className="p-3 flex items-center justify-between hover:bg-gray-50 rounded-xl transition-colors gap-2">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                       <div className="w-8 h-8 rounded-full bg-green-50 text-green-600 flex items-center justify-center shrink-0">
                         <CheckCircle2 className="w-4 h-4" />
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-[#0a1128]">₦{Number(tx.amount).toLocaleString()}</p>
-                        <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">{new Date(tx.payment_date).toLocaleDateString('en-GB')}</p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-[#0a1128] truncate">₦{Number(tx.amount).toLocaleString()}</p>
+                        <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider truncate">{new Date(tx.payment_date).toLocaleDateString('en-GB')}</p>
                       </div>
                     </div>
+                    
                     <button 
-                      onClick={() => onViewReceipt(tx)}
-                      className="text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors border border-blue-100/50 flex items-center gap-1.5"
+                      onClick={() => onViewReceipt && onViewReceipt(tx)}
+                      className="shrink-0 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors border border-blue-100/50 flex items-center gap-1.5"
                     >
-                      <ReceiptText className="w-3 h-3" />
+                      <ReceiptText className="w-3 h-3 hidden sm:block" />
                       Receipt
                     </button>
                   </li>
